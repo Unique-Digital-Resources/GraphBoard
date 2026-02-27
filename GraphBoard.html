@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Infinite Grid - Node Editor</title>
+    <style>
+        :root {
+            --bg-color: #1e1e1e;
+            --panel-bg: rgba(30, 30, 30, 0.95);
+            --text-color: #e0e0e0;
+            --accent-color: #7b6cd9;
+            --accent-hover: #9f92e6;
+            --border-color: #444;
+            --grid-line-color: #444;
+            --grid-dot-color: #555;
+            --sub-grid-color: #333;
+            --selection-color: #ff6b6b;
+        }
+
+        * { box-sizing: border-box; }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: var(--text-color);
+        }
+
+        #app-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            cursor: grab;
+        }
+
+        #app-container.panning { cursor: grabbing; }
+        #app-container.dragging-node { cursor: move; }
+
+        svg {
+            display: block;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* Grid Styles */
+        .grid-line { stroke: var(--grid-line-color); stroke-width: 1px; vector-effect: non-scaling-stroke; }
+        .grid-sub-line { stroke: var(--sub-grid-color); stroke-width: 1px; vector-effect: non-scaling-stroke; }
+        .grid-dot { fill: var(--grid-dot-color); }
+        .grid-sub-dot { fill: var(--sub-grid-color); }
+
+        /* Node Styles */
+        .demo-node { cursor: pointer; transition: filter 0.1s; }
+        .demo-node rect {
+            fill: #252526;
+            stroke: var(--accent-color);
+            stroke-width: 2px;
+            rx: 6;
+            transition: stroke 0.1s, fill 0.1s;
+        }
+        .demo-node:hover rect { fill: #2d2d30; stroke: var(--accent-hover); }
+        .demo-node.selected rect {
+            stroke: var(--selection-color);
+            stroke-width: 3px;
+            filter: drop-shadow(0 0 8px rgba(255, 107, 107, 0.4));
+        }
+        .demo-node text {
+            fill: white;
+            font-size: 14px;
+            font-weight: 500;
+            pointer-events: none;
+        }
+
+        /* UI Controls */
+        #controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 280px;
+            max-height: calc(100vh - 40px);
+            background-color: var(--panel-bg);
+            backdrop-filter: blur(10px);
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            z-index: 100;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        /* Custom Scrollbar */
+        #controls::-webkit-scrollbar { width: 6px; }
+        #controls::-webkit-scrollbar-track { background: transparent; }
+        #controls::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+        #controls::-webkit-scrollbar-thumb:hover { background: #666; }
+
+        h2 {
+            margin: 0;
+            font-size: 14px;
+            color: var(--accent-color);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+            position: sticky;
+            top: 0;
+            background-color: var(--panel-bg);
+            z-index: 2;
+        }
+
+        .control-group { display: flex; flex-direction: column; gap: 8px; }
+        
+        label { 
+            font-size: 12px; 
+            color: #aaa; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center;
+        }
+        
+        .toggle-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+        }
+
+        select, button, input {
+            padding: 8px 12px;
+            background-color: #333;
+            border: 1px solid var(--border-color);
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        button:hover { background-color: #444; border-color: #666; }
+        button.primary { background-color: var(--accent-color); border-color: var(--accent-color); font-weight: bold; }
+        button.primary:hover { background-color: var(--accent-hover); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .row { display: flex; gap: 8px; }
+        .row > * { flex: 1; }
+
+        /* Tools Grid */
+        .tools-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        .tool-section {
+            background: rgba(0,0,0,0.2);
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #333;
+        }
+        
+        .tool-section h3 {
+            font-size: 11px;
+            color: #888;
+            margin: 0 0 8px 0;
+            text-transform: uppercase;
+        }
+
+        .alignment-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 4px;
+        }
+        
+        .dist-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px;
+        }
+
+        .tool-btn { 
+            font-size: 16px; 
+            padding: 6px; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #383838;
+        }
+        .tool-btn:hover { background-color: #444; }
+
+        .info-display {
+            font-family: monospace;
+            font-size: 11px;
+            color: #888;
+            text-align: right;
+            padding-top: 8px;
+            border-top: 1px solid #333;
+        }
+
+        /* Minimap */
+        #minimap-container {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 200px;
+            height: 150px;
+            background-color: rgba(30,30,30,0.8);
+            border: 1px solid #444;
+            border-radius: 6px;
+            z-index: 90;
+            overflow: hidden;
+        }
+        .minimap-node { fill: var(--accent-color); opacity: 0.8; }
+        .minimap-node.selected { fill: var(--selection-color); }
+        .minimap-viewport { fill: rgba(123, 108, 217, 0.3); stroke: rgba(123, 108, 217, 0.8); stroke-width: 1px; }
+
+        #toast {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #333;
+            border: 1px solid var(--accent-color);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            z-index: 200;
+        }
+        #toast.visible { opacity: 1; }
+    </style>
+</head>
+<body>
+
+    <div id="app-container"></div>
+
+    <div id="minimap-container">
+        <svg id="minimap-svg" viewBox="0 0 200 150">
+            <g id="minimap-content-layer"></g>
+            <rect id="minimap-viewport" class="minimap-viewport" x="0" y="0" width="50" height="50"></rect>
+        </svg>
+    </div>
+
+    <div id="controls">
+        <h2>Editor Controls</h2>
+        
+        <div class="control-group">
+            <label>Grid Style</label>
+            <select id="grid-type">
+                <option value="lines">Lines</option>
+                <option value="dots">Dots</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <div class="toggle-row">
+                <span>Show Sub-grid</span>
+                <input type="checkbox" id="sub-grid-toggle" checked>
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <label>Snapping</label>
+            <select id="snap-mode">
+                <option value="off">No Snap</option>
+                <option value="major" selected>Snap to Major Grid</option>
+                <option value="sub">Snap to Sub-grid</option>
+            </select>
+        </div>
+
+        <!-- Tools Section -->
+        <div class="control-group">
+            <label>Layout Tools <span id="sel-count" style="color:var(--accent-color)">(0 selected)</span></label>
+            
+            <div class="tools-grid">
+                <!-- Alignment Column -->
+                <div class="tool-section">
+                    <h3>Align</h3>
+                    <div class="alignment-grid">
+                        <button class="tool-btn" title="Align Left" data-align="left">⫷</button>
+                        <button class="tool-btn" title="Align Center H" data-align="center-h">⫿</button>
+                        <button class="tool-btn" title="Align Right" data-align="right">⫸</button>
+                        <button class="tool-btn" title="Align Top" data-align="top">⫯</button>
+                        <button class="tool-btn" title="Align Center V" data-align="center-v">⫰</button>
+                        <button class="tool-btn" title="Align Bottom" data-align="bottom">⫱</button>
+                    </div>
+                </div>
+
+                <!-- Placement Column -->
+                <div class="tool-section">
+                    <h3>Distribute</h3>
+                    <div class="dist-grid">
+                        <button class="tool-btn" title="Distribute Horizontally" data-dist="h">↔</button>
+                        <button class="tool-btn" title="Distribute Vertically" data-dist="v">↕</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <button id="zoom-in-btn">Zoom +</button>
+            <button id="zoom-out-btn">Zoom -</button>
+        </div>
+        
+        <button id="reset-btn" class="primary">Reset View</button>
+
+        <div class="info-display" id="coords-display">Zoom: 100%</div>
+        
+        <div style="margin-top:5px; font-size: 11px; color: #666; line-height: 1.5;">
+            <strong>Shortcuts:</strong><br>
+            • <b>Scroll</b> to Zoom<br>
+            • <b>Drag</b> Canvas to Pan<br>
+            • <b>Click</b> Node to Select<br>
+            • <b>Ctrl+Click</b> for Multi-Select<br>
+            • <b>Ctrl+A</b> to Select All
+        </div>
+    </div>
+
+    <div id="toast">Notification</div>
+
+    <script>
+        /**
+         * InfiniteGrid Component
+         */
+        class InfiniteGrid {
+            constructor(containerId, options = {}) {
+                this.container = document.getElementById(containerId);
+                
+                this.options = {
+                    majorGrid: options.majorGrid || 100,
+                    subGrid: options.subGrid || 20,
+                    gridType: options.gridType || 'lines',
+                    showSubGrid: options.showSubGrid !== undefined ? options.showSubGrid : true,
+                    snapMode: options.snapMode || 'major', // 'off', 'major', 'sub'
+                    minZoom: 0.1,
+                    maxZoom: 10.0,
+                    zoomSensitivity: 0.1
+                };
+
+                this.scale = 1;
+                this.panX = 0;
+                this.panY = 0;
+                
+                this.isPanning = false;
+                this.lastMouseX = 0;
+                this.lastMouseY = 0;
+
+                this.nodes = [];
+                this.selectedNodes = new Set();
+
+                this.isDraggingNodes = false;
+                this.dragStartMouse = { x: 0, y: 0 };
+                this.dragStartPositions = [];
+
+                this.svgNS = "http://www.w3.org/2000/svg";
+                this.init();
+            }
+
+            init() {
+                // 1. SVG Setup
+                this.svg = document.createElementNS(this.svgNS, "svg");
+                this.svg.setAttribute("id", "main-svg");
+                this.svg.setAttribute("width", "100%");
+                this.svg.setAttribute("height", "100%");
+                
+                this.defs = document.createElementNS(this.svgNS, "defs");
+                this.svg.appendChild(this.defs);
+
+                // Grid Layer
+                this.gridLayer = document.createElementNS(this.svgNS, "g");
+                this.gridLayer.setAttribute("class", "grid-group");
+                this.svg.appendChild(this.gridLayer);
+
+                this.contentLayer = document.createElementNS(this.svgNS, "g");
+                this.contentLayer.setAttribute("class", "grid-group");
+                this.svg.appendChild(this.contentLayer);
+
+                this.container.appendChild(this.svg);
+
+                // Minimap
+                this.minimapSvg = document.getElementById('minimap-svg');
+                this.minimapContentLayer = document.getElementById('minimap-content-layer');
+                this.minimapViewport = document.getElementById('minimap-viewport');
+
+                this.updatePatterns(); 
+                this.bindEvents();
+                this.updateTransform();
+            }
+
+            updatePatterns() {
+                this.defs.innerHTML = ''; 
+                this.gridLayer.innerHTML = '';
+
+                const createPattern = (id, w, h, type, isSub = false) => {
+                    const pattern = document.createElementNS(this.svgNS, "pattern");
+                    pattern.setAttribute("id", id);
+                    pattern.setAttribute("width", w);
+                    pattern.setAttribute("height", h);
+                    pattern.setAttribute("patternUnits", "userSpaceOnUse");
+                    const midX = w / 2, midY = h / 2;
+                    if (type === 'lines') {
+                        const path = document.createElementNS(this.svgNS, "path");
+                        path.setAttribute("d", `M ${midX} 0 L ${midX} ${h} M 0 ${midY} L ${w} ${midY}`);
+                        path.setAttribute("fill", "none");
+                        path.setAttribute("class", isSub ? "grid-sub-line" : "grid-line");
+                        pattern.appendChild(path);
+                    } else {
+                        const c = document.createElementNS(this.svgNS, "circle");
+                        c.setAttribute("cx", midX); c.setAttribute("cy", midY);
+                        c.setAttribute("r", isSub ? 1 : 2);
+                        c.setAttribute("class", isSub ? "grid-sub-dot" : "grid-dot");
+                        pattern.appendChild(c);
+                    }
+                    return pattern;
+                };
+
+                this.defs.appendChild(createPattern('gridPatternMajor', this.options.majorGrid, this.options.majorGrid, this.options.gridType));
+                this.defs.appendChild(createPattern('gridPatternSub', this.options.subGrid, this.options.subGrid, this.options.gridType, true));
+
+                const infiniteRect = document.createElementNS(this.svgNS, "rect");
+                infiniteRect.setAttribute("x", "-50000");
+                infiniteRect.setAttribute("y", "-50000");
+                infiniteRect.setAttribute("width", "100000");
+                infiniteRect.setAttribute("height", "100000");
+
+                const majorRect = infiniteRect.cloneNode();
+                majorRect.setAttribute("fill", "url(#gridPatternMajor)");
+                this.gridLayer.appendChild(majorRect);
+
+                if (this.options.showSubGrid) {
+                    const subRect = infiniteRect.cloneNode();
+                    subRect.setAttribute("fill", "url(#gridPatternSub)");
+                    subRect.setAttribute("opacity", "0.5");
+                    this.gridLayer.appendChild(subRect);
+                }
+            }
+
+            toggleSubGrid(show) {
+                this.options.showSubGrid = show;
+                this.updatePatterns();
+            }
+
+            setSnapMode(mode) {
+                this.options.snapMode = mode;
+                const labels = { off: "Snapping Off", major: "Snap to Major", sub: "Snap to Sub-grid" };
+                showToast(labels[mode]);
+            }
+
+            setGridType(type) {
+                this.options.gridType = type;
+                this.updatePatterns();
+            }
+
+            // Returns snapped coordinate based on current mode
+            getSnappedPos(x, y) {
+                const mode = this.options.snapMode;
+                if (mode === 'off') return { x, y };
+                
+                // Determine grid size based on mode
+                const gridSize = (mode === 'sub') ? this.options.subGrid : this.options.majorGrid;
+                
+                return {
+                    x: Math.round(x / gridSize) * gridSize,
+                    y: Math.round(y / gridSize) * gridSize
+                };
+            }
+
+            // --- Selection ---
+
+            selectNode(id, isMultiSelect) {
+                if (!isMultiSelect) {
+                    this.selectedNodes.forEach(id => this.updateNodeVisualSelection(id, false));
+                    this.selectedNodes.clear();
+                }
+
+                if (this.selectedNodes.has(id)) {
+                    this.selectedNodes.delete(id);
+                    this.updateNodeVisualSelection(id, false);
+                } else {
+                    this.selectedNodes.add(id);
+                    this.updateNodeVisualSelection(id, true);
+                }
+                this.updateUIState();
+            }
+
+            selectAll() {
+                this.nodes.forEach(n => {
+                    this.selectedNodes.add(n.id);
+                    this.updateNodeVisualSelection(n.id, true);
+                });
+                this.updateUIState();
+                showToast("Selected All Nodes");
+            }
+
+            deselectAll() {
+                this.selectedNodes.forEach(id => this.updateNodeVisualSelection(id, false));
+                this.selectedNodes.clear();
+                this.updateUIState();
+            }
+
+            updateNodeVisualSelection(id, isSelected) {
+                const node = this.nodes.find(n => n.id === id);
+                if (node && node.el) {
+                    if (isSelected) node.el.classList.add('selected');
+                    else node.el.classList.remove('selected');
+                }
+                if (node && node.minimapDot) {
+                    if (isSelected) node.minimapDot.classList.add('selected');
+                    else node.minimapDot.classList.remove('selected');
+                }
+            }
+
+            updateUIState() {
+                document.getElementById('sel-count').textContent = `(${this.selectedNodes.size} selected)`;
+            }
+
+            // --- Dragging ---
+
+            startDragNodes(startX, startY) {
+                this.isDraggingNodes = true;
+                this.container.classList.add('dragging-node');
+                this.dragStartMouse = { x: startX, y: startY };
+                this.dragStartPositions = [];
+                this.selectedNodes.forEach(id => {
+                    const node = this.nodes.find(n => n.id === id);
+                    if (node) this.dragStartPositions.push({ id: node.id, x: node.x, y: node.y });
+                });
+            }
+
+            handleDragNodes(currentX, currentY) {
+                if (!this.isDraggingNodes) return;
+                const dxScreen = currentX - this.dragStartMouse.x;
+                const dyScreen = currentY - this.dragStartMouse.y;
+                const dxWorld = dxScreen / this.scale;
+                const dyWorld = dyScreen / this.scale;
+
+                this.dragStartPositions.forEach(startPos => {
+                    const node = this.nodes.find(n => n.id === startPos.id);
+                    if (node) {
+                        let targetX = startPos.x + dxWorld;
+                        let targetY = startPos.y + dyWorld;
+
+                        const snapped = this.getSnappedPos(targetX, targetY);
+                        node.x = snapped.x;
+                        node.y = snapped.y;
+
+                        node.el.setAttribute("transform", `translate(${node.x}, ${node.y})`);
+                    }
+                });
+                this.updateMinimap();
+            }
+
+            endDragNodes() {
+                this.isDraggingNodes = false;
+                this.container.classList.remove('dragging-node');
+            }
+
+            // --- Layout Tools ---
+
+            alignNodes(mode) {
+                if (this.selectedNodes.size < 2) { showToast("Select 2+ nodes"); return; }
+                const subset = this.nodes.filter(n => this.selectedNodes.has(n.id));
+
+                let minL = Infinity, maxR = -Infinity, minT = Infinity, maxB = -Infinity;
+                subset.forEach(n => {
+                    const l = n.x - n.width/2, r = n.x + n.width/2;
+                    const t = n.y - n.height/2, b = n.y + n.height/2;
+                    if (l < minL) minL = l; if (r > maxR) maxR = r;
+                    if (t < minT) minT = t; if (b > maxB) maxB = b;
+                });
+
+                const centerGroupX = (minL + maxR) / 2;
+                const centerGroupY = (minT + maxB) / 2;
+
+                subset.forEach(n => {
+                    const halfW = n.width / 2, halfH = n.height / 2;
+                    let targetX = n.x;
+                    let targetY = n.y;
+
+                    switch(mode) {
+                        case 'left': targetX = minL + halfW; break;
+                        case 'right': targetX = maxR - halfW; break;
+                        case 'top': targetY = minT + halfH; break;
+                        case 'bottom': targetY = maxB - halfH; break;
+                        case 'center-h': targetY = centerGroupY; break;
+                        case 'center-v': targetX = centerGroupX; break;
+                    }
+
+                    const snapped = this.getSnappedPos(targetX, targetY);
+                    
+                    if (mode === 'left' || mode === 'right' || mode === 'center-v') {
+                        n.x = snapped.x;
+                    } else if (mode === 'top' || mode === 'bottom' || mode === 'center-h') {
+                        n.y = snapped.y;
+                    }
+
+                    n.el.setAttribute("transform", `translate(${n.x}, ${n.y})`);
+                });
+                this.updateMinimap();
+                showToast(`Aligned ${mode}`);
+            }
+
+            distributeNodes(direction) {
+                if (this.selectedNodes.size < 3) { showToast("Select 3+ nodes to distribute"); return; }
+                
+                const subset = this.nodes.filter(n => this.selectedNodes.has(n.id));
+                
+                if (direction === 'h') {
+                    subset.sort((a, b) => a.x - b.x);
+                    
+                    const minL = subset[0].x - subset[0].width/2;
+                    const maxR = subset[subset.length-1].x + subset[subset.length-1].width/2;
+                    const totalWidth = subset.reduce((sum, n) => sum + n.width, 0);
+                    const totalGap = (maxR - minL) - totalWidth;
+                    const gap = totalGap / (subset.length - 1);
+
+                    let currentEdge = minL;
+
+                    subset.forEach((n, i) => {
+                        if (i > 0) {
+                            currentEdge += gap + subset[i-1].width;
+                        }
+                        
+                        let targetX = currentEdge + n.width/2;
+                        
+                        const snapped = this.getSnappedPos(targetX, n.y);
+                        n.x = snapped.x;
+
+                        n.el.setAttribute("transform", `translate(${n.x}, ${n.y})`);
+                    });
+
+                } else {
+                    subset.sort((a, b) => a.y - b.y);
+                    
+                    const minT = subset[0].y - subset[0].height/2;
+                    const maxB = subset[subset.length-1].y + subset[subset.length-1].height/2;
+                    const totalHeight = subset.reduce((sum, n) => sum + n.height, 0);
+                    const totalGap = (maxB - minT) - totalHeight;
+                    const gap = totalGap / (subset.length - 1);
+
+                    let currentEdge = minT;
+
+                    subset.forEach((n, i) => {
+                         if (i > 0) {
+                            currentEdge += gap + subset[i-1].height;
+                        }
+                        
+                        let targetY = currentEdge + n.height/2;
+                        
+                        const snapped = this.getSnappedPos(n.x, targetY);
+                        n.y = snapped.y;
+
+                        n.el.setAttribute("transform", `translate(${n.x}, ${n.y})`);
+                    });
+                }
+
+                this.updateMinimap();
+                showToast("Distributed nodes");
+            }
+
+            // --- Core ---
+
+            zoom(delta, screenX, screenY) {
+                const oldScale = this.scale;
+                let newScale = oldScale * (1 + delta);
+                newScale = Math.max(this.options.minZoom, Math.min(this.options.maxZoom, newScale));
+                if (newScale === oldScale) return;
+
+                const worldX = (screenX - this.panX) / oldScale;
+                const worldY = (screenY - this.panY) / oldScale;
+
+                this.scale = newScale;
+                this.panX = screenX - worldX * this.scale;
+                this.panY = screenY - worldY * this.scale;
+                this.updateTransform();
+            }
+
+            pan(dx, dy) {
+                this.panX += dx;
+                this.panY += dy;
+                this.updateTransform();
+            }
+
+            updateTransform() {
+                const transformStr = `translate(${this.panX}, ${this.panY}) scale(${this.scale})`;
+                this.gridLayer.setAttribute("transform", transformStr);
+                this.contentLayer.setAttribute("transform", transformStr);
+                this.updateMinimap();
+            }
+
+            updateMinimap() {
+                const bounds = this.getContentBounds();
+                const mmW = 200, mmH = 150, pad = 30;
+                this.minimapContentLayer.innerHTML = '';
+
+                if (!bounds) { this.minimapViewport.setAttribute("width", 0); return; }
+
+                const scaleX = (mmW - pad * 2) / bounds.width;
+                const scaleY = (mmH - pad * 2) / bounds.height;
+                const mmScale = Math.min(scaleX, scaleY, 1.5);
+
+                const worldToMinimapX = (wx) => (wx - bounds.centerX) * mmScale + (mmW / 2);
+                const worldToMinimapY = (wy) => (wy - bounds.centerY) * mmScale + (mmH / 2);
+
+                this.nodes.forEach(node => {
+                    const c = document.createElementNS(this.svgNS, "circle");
+                    const cx = worldToMinimapX(node.x);
+                    const cy = worldToMinimapY(node.y);
+                    let r = (Math.min(node.width, node.height) / 2) * mmScale;
+                    r = Math.max(2, Math.min(r, 8));
+                    c.setAttribute("cx", cx); c.setAttribute("cy", cy); c.setAttribute("r", r);
+                    c.setAttribute("class", "minimap-node");
+                    if(this.selectedNodes.has(node.id)) c.classList.add("selected");
+                    node.minimapDot = c;
+                    this.minimapContentLayer.appendChild(c);
+                });
+
+                const screenW = window.innerWidth, screenH = window.innerHeight;
+                const vpL = (0 - this.panX) / this.scale, vpT = (0 - this.panY) / this.scale;
+                const vpR = (screenW - this.panX) / this.scale, vpB = (screenH - this.panY) / this.scale;
+
+                this.minimapViewport.setAttribute("x", worldToMinimapX(vpL));
+                this.minimapViewport.setAttribute("y", worldToMinimapY(vpT));
+                this.minimapViewport.setAttribute("width", worldToMinimapX(vpR) - worldToMinimapX(vpL));
+                this.minimapViewport.setAttribute("height", worldToMinimapY(vpB) - worldToMinimapY(vpT));
+            }
+
+            getContentBounds() {
+                if (this.nodes.length === 0) return null;
+                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                this.nodes.forEach(node => {
+                    const l = node.x - node.width/2, r = node.x + node.width/2;
+                    const t = node.y - node.height/2, b = node.y + node.height/2;
+                    if (l < minX) minX = l; if (r > maxX) maxX = r;
+                    if (t < minY) minY = t; if (b > maxY) maxY = b;
+                });
+                return { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY, centerX: (minX + maxX) / 2, centerY: (minY + maxY) / 2 };
+            }
+
+            addNode(x, y, title) {
+                const w = 160, h = 80;
+                const id = `node-${Math.random().toString(36).substr(2, 9)}`;
+
+                // Snap initial position
+                const snapped = this.getSnappedPos(x, y);
+                x = snapped.x; y = snapped.y;
+
+                const g = document.createElementNS(this.svgNS, "g");
+                g.setAttribute("class", "demo-node");
+                g.setAttribute("transform", `translate(${x}, ${y})`);
+                g.setAttribute("data-id", id);
+
+                const rect = document.createElementNS(this.svgNS, "rect");
+                rect.setAttribute("width", w); rect.setAttribute("height", h);
+                rect.setAttribute("x", -w/2); rect.setAttribute("y", -h/2);
+                
+                const text = document.createElementNS(this.svgNS, "text");
+                text.textContent = title; text.setAttribute("x", 0); text.setAttribute("y", 5); text.setAttribute("text-anchor", "middle");
+                
+                g.appendChild(rect); g.appendChild(text);
+                this.contentLayer.appendChild(g);
+
+                const nodeData = { id, x, y, width: w, height: h, el: g };
+                this.nodes.push(nodeData);
+
+                g.addEventListener('mousedown', (e) => {
+                    if (e.button !== 0) return;
+                    e.stopPropagation();
+                    
+                    const isMultiKey = e.ctrlKey || e.metaKey;
+
+                    if (!this.selectedNodes.has(id)) {
+                        this.selectNode(id, isMultiKey);
+                    } else if (isMultiKey) {
+                        this.selectNode(id, true);
+                        return;
+                    }
+
+                    if (this.selectedNodes.has(id)) {
+                        this.startDragNodes(e.clientX, e.clientY);
+                    }
+                });
+                
+                this.updateMinimap();
+                return nodeData;
+            }
+
+            bindEvents() {
+                window.addEventListener('mousemove', (e) => {
+                    if (this.isPanning) {
+                        const dx = e.clientX - this.lastMouseX;
+                        const dy = e.clientY - this.lastMouseY;
+                        this.pan(dx, dy);
+                        this.lastMouseX = e.clientX;
+                        this.lastMouseY = e.clientY;
+                    } else if (this.isDraggingNodes) {
+                        this.handleDragNodes(e.clientX, e.clientY);
+                    }
+                });
+
+                window.addEventListener('mouseup', () => {
+                    if (this.isPanning) {
+                        this.isPanning = false;
+                        this.container.classList.remove('panning');
+                    }
+                    if (this.isDraggingNodes) {
+                        this.endDragNodes();
+                    }
+                });
+
+                this.container.addEventListener('mousedown', (e) => {
+                    if (e.target.tagName === 'svg' || (e.target.tagName === 'rect' && e.target.parentElement.classList.contains('grid-group'))) {
+                        this.deselectAll();
+                        this.isPanning = true;
+                        this.lastMouseX = e.clientX;
+                        this.lastMouseY = e.clientY;
+                        this.container.classList.add('panning');
+                    }
+                });
+
+                this.container.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    const d = Math.sign(e.deltaY);
+                    this.zoom(-d * this.options.zoomSensitivity, e.clientX, e.clientY);
+                }, { passive: false });
+
+                window.addEventListener('keydown', (e) => {
+                    if (e.key === 'a' && (e.ctrlKey || e.metaKey)) {
+                        e.preventDefault();
+                        this.selectAll();
+                    }
+                });
+            }
+        }
+
+        // --- Init ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const grid = new InfiniteGrid('app-container', {
+                majorGrid: 100,
+                subGrid: 20,
+                gridType: 'lines',
+                showSubGrid: true,
+                snapMode: 'major'
+            });
+
+            grid.addNode(0, 0, "Start Node");
+            grid.addNode(200, -150, "Process A");
+            grid.addNode(-250, 100, "Input");
+            grid.addNode(300, 200, "Output");
+            grid.addNode(0, 300, "End Node");
+
+            // UI Bindings
+            document.getElementById('grid-type').addEventListener('change', (e) => {
+                grid.setGridType(e.target.value);
+            });
+
+            document.getElementById('sub-grid-toggle').addEventListener('change', (e) => {
+                grid.toggleSubGrid(e.target.checked);
+            });
+
+            document.getElementById('snap-mode').addEventListener('change', (e) => {
+                grid.setSnapMode(e.target.value);
+            });
+
+            document.querySelectorAll('[data-align]').forEach(btn => {
+                btn.addEventListener('click', () => grid.alignNodes(btn.dataset.align));
+            });
+
+            document.querySelectorAll('[data-dist]').forEach(btn => {
+                btn.addEventListener('click', () => grid.distributeNodes(btn.dataset.dist));
+            });
+
+            document.getElementById('zoom-in-btn').addEventListener('click', () => grid.zoom(0.3, window.innerWidth/2, window.innerHeight/2));
+            document.getElementById('zoom-out-btn').addEventListener('click', () => grid.zoom(-0.3, window.innerWidth/2, window.innerHeight/2));
+            document.getElementById('reset-btn').addEventListener('click', () => {
+                grid.scale = 1; grid.panX = 0; grid.panY = 0; grid.updateTransform(); showToast("View Reset");
+            });
+
+            const coords = document.getElementById('coords-display');
+            setInterval(() => { coords.textContent = `Zoom: ${Math.round(grid.scale * 100)}%`; }, 100);
+
+            function showToast(msg) {
+                const t = document.getElementById('toast');
+                t.textContent = msg; t.classList.add('visible');
+                setTimeout(() => t.classList.remove('visible'), 2000);
+            }
+            window.showToast = showToast;
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GraphBoard Component Test</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="js/main.css">
+</head>
+<body>
+    <div id="app-container"></div>
+
+    <div id="minimap-container">
+        <svg id="minimap-svg" viewBox="0 0 200 150">
+            <g id="minimap-content-layer"></g>
+            <rect id="minimap-viewport" class="minimap-viewport" x="0" y="0" width="50" height="50"></rect>
+        </svg>
+    </div>
+
+    <div id="controls">
+        <h2>Editor Controls</h2>
+        
+        <div class="control-group">
+            <label>Grid Style</label>
+            <select id="grid-type">
+                <option value="lines">Lines</option>
+                <option value="dots">Dots</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <div class="toggle-row">
+                <span>Show Sub-grid</span>
+                <input type="checkbox" id="sub-grid-toggle" checked>
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <label>Snapping</label>
+            <select id="snap-mode">
+                <option value="off">No Snap</option>
+                <option value="major" selected>Snap to Major Grid</option>
+                <option value="sub">Snap to Sub-grid</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label>Layout Tools <span id="sel-count" style="color:#7b6cd9">(0 selected)</span></label>
+            
+            <div class="tools-grid">
+                <div class="tool-section">
+                    <h3>Align</h3>
+                    <div class="alignment-grid">
+                        <button class="tool-btn" title="Align Left" data-align="left">⫷</button>
+                        <button class="tool-btn" title="Align Center H" data-align="center-h">⫿</button>
+                        <button class="tool-btn" title="Align Right" data-align="right">⫸</button>
+                        <button class="tool-btn" title="Align Top" data-align="top">⫯</button>
+                        <button class="tool-btn" title="Align Center V" data-align="center-v">⫰</button>
+                        <button class="tool-btn" title="Align Bottom" data-align="bottom">⫱</button>
+                    </div>
+                </div>
+
+                <div class="tool-section">
+                    <h3>Distribute</h3>
+                    <div class="dist-grid">
+                        <button class="tool-btn" title="Distribute Horizontally" data-dist="h">↔</button>
+                        <button class="tool-btn" title="Distribute Vertically" data-dist="v">↕</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <button id="zoom-in-btn">Zoom +</button>
+            <button id="zoom-out-btn">Zoom -</button>
+        </div>
+        
+        <button id="reset-btn" class="primary">Reset View</button>
+
+        <div class="info-display" id="coords-display">Zoom: 100%</div>
+        
+        <div class="shortcuts-help">
+            <strong>Shortcuts:</strong><br>
+            • <b>Scroll</b> to Zoom<br>
+            • <b>Drag</b> Canvas to Pan<br>
+            • <b>Click</b> Element to Select<br>
+            • <b>Ctrl+Click</b> for Multi-Select<br>
+            • <b>Ctrl+A</b> to Select All
+        </div>
+    </div>
+
+    <div id="toast">Notification</div>
+
+    <script type="module">
+        import { GraphBoard } from './js/main.js';
+
+        class GraphBoardWithMinimap extends GraphBoard {
+            constructor(containerId, options = {}) {
+                super(containerId, options);
+                
+                this.minimapSvg = document.getElementById('minimap-svg');
+                this.minimapContentLayer = document.getElementById('minimap-content-layer');
+                this.minimapViewport = document.getElementById('minimap-viewport');
+                
+                this.selectionManager.setOnSelectionChange((count) => {
+                    document.getElementById('sel-count').textContent = `(${count} selected)`;
+                });
+            }
+
+            updateMinimap() {
+                const bounds = this.getContentBounds();
+                const mmW = 200, mmH = 150, pad = 30;
+                this.minimapContentLayer.innerHTML = '';
+
+                if (!bounds) {
+                    this.minimapViewport.setAttribute("width", 0);
+                    return;
+                }
+
+                const scaleX = (mmW - pad * 2) / bounds.width;
+                const scaleY = (mmH - pad * 2) / bounds.height;
+                const mmScale = Math.min(scaleX, scaleY, 1.5);
+
+                const worldToMinimapX = (wx) => (wx - bounds.centerX) * mmScale + (mmW / 2);
+                const worldToMinimapY = (wy) => (wy - bounds.centerY) * mmScale + (mmH / 2);
+
+                this.elements.forEach(el => {
+                    const c = document.createElementNS(this.svgNS, "circle");
+                    const cx = worldToMinimapX(el.x);
+                    const cy = worldToMinimapY(el.y);
+                    let r = (Math.min(el.width, el.height) / 2) * mmScale;
+                    r = Math.max(2, Math.min(r, 8));
+                    c.setAttribute("cx", cx);
+                    c.setAttribute("cy", cy);
+                    c.setAttribute("r", r);
+                    c.setAttribute("class", "minimap-node");
+                    if (this.selectionManager.isSelected(el.id)) {
+                        c.classList.add("selected");
+                    }
+                    el.minimapDot = c;
+                    this.minimapContentLayer.appendChild(c);
+                });
+
+                const screenW = window.innerWidth, screenH = window.innerHeight;
+                const vpL = (0 - this.panX) / this.scale;
+                const vpT = (0 - this.panY) / this.scale;
+                const vpR = (screenW - this.panX) / this.scale;
+                const vpB = (screenH - this.panY) / this.scale;
+
+                this.minimapViewport.setAttribute("x", worldToMinimapX(vpL));
+                this.minimapViewport.setAttribute("y", worldToMinimapY(vpT));
+                this.minimapViewport.setAttribute("width", worldToMinimapX(vpR) - worldToMinimapX(vpL));
+                this.minimapViewport.setAttribute("height", worldToMinimapY(vpB) - worldToMinimapY(vpT));
+            }
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.classList.add('visible');
+            setTimeout(() => t.classList.remove('visible'), 2000);
+        }
+
+        const grid = new GraphBoardWithMinimap('app-container', {
+            majorGrid: 100,
+            subGrid: 20,
+            gridType: 'lines',
+            showSubGrid: true,
+            snapMode: 'major',
+            onToast: showToast
+        });
+
+        // Add test nodes
+        grid.addTestNode(0, 0, "Start Node");
+        grid.addTestNode(200, -150, "Process A");
+        grid.addTestNode(-250, 100, "Input");
+        grid.addTestNode(300, 200, "Output");
+        grid.addTestNode(0, 300, "End Node");
+
+        // UI Bindings
+        document.getElementById('grid-type').addEventListener('change', (e) => {
+            grid.setGridType(e.target.value);
+        });
+
+        document.getElementById('sub-grid-toggle').addEventListener('change', (e) => {
+            grid.toggleSubGrid(e.target.checked);
+        });
+
+        document.getElementById('snap-mode').addEventListener('change', (e) => {
+            grid.setSnapMode(e.target.value);
+        });
+
+        document.querySelectorAll('[data-align]').forEach(btn => {
+            btn.addEventListener('click', () => grid.alignNodes(btn.dataset.align));
+        });
+
+        document.querySelectorAll('[data-dist]').forEach(btn => {
+            btn.addEventListener('click', () => grid.distributeNodes(btn.dataset.dist));
+        });
+
+        document.getElementById('zoom-in-btn').addEventListener('click', () => 
+            grid.zoom(0.3, window.innerWidth/2, window.innerHeight/2));
+        
+        document.getElementById('zoom-out-btn').addEventListener('click', () => 
+            grid.zoom(-0.3, window.innerWidth/2, window.innerHeight/2));
+        
+        document.getElementById('reset-btn').addEventListener('click', () => {
+            grid.resetView();
+        });
+
+        const coords = document.getElementById('coords-display');
+        setInterval(() => {
+            coords.textContent = `Zoom: ${Math.round(grid.scale * 100)}%`;
+        }, 100);
+    </script>
+</body>
+</html>

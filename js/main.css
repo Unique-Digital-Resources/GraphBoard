@@ -1,0 +1,60 @@
+:root {
+    --gb-bg-color: #1e1e1e;
+    --gb-panel-bg: rgba(30, 30, 30, 0.95);
+    --gb-text-color: #e0e0e0;
+    --gb-accent-color: #7b6cd9;
+    --gb-accent-hover: #9f92e6;
+    --gb-border-color: #444;
+    --gb-grid-line-color: #444;
+    --gb-grid-dot-color: #555;
+    --gb-sub-grid-color: #333;
+    --gb-selection-color: #ff6b6b;
+}
+
+#app-container {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background-color: var(--gb-bg-color);
+    cursor: grab;
+}
+
+#app-container.panning { cursor: grabbing; }
+#app-container.dragging-element { cursor: move; }
+
+svg {
+    display: block;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.grid-line { stroke: var(--gb-grid-line-color); stroke-width: 1px; vector-effect: non-scaling-stroke; }
+.grid-sub-line { stroke: var(--gb-sub-grid-color); stroke-width: 1px; vector-effect: non-scaling-stroke; }
+.grid-dot { fill: var(--gb-grid-dot-color); }
+.grid-sub-dot { fill: var(--gb-sub-grid-color); }
+
+.graph-element { cursor: pointer; transition: filter 0.1s; }
+.graph-element rect {
+    fill: #252526;
+    stroke: var(--gb-accent-color);
+    stroke-width: 2px;
+    rx: 6;
+    transition: stroke 0.1s, fill 0.1s;
+}
+.graph-element:hover rect { fill: #2d2d30; stroke: var(--gb-accent-hover); }
+.graph-element.selected rect {
+    stroke: var(--gb-selection-color);
+    stroke-width: 3px;
+    filter: drop-shadow(0 0 8px rgba(255, 107, 107, 0.4));
+}
+.graph-element text {
+    fill: white;
+    font-size: 14px;
+    font-weight: 500;
+    pointer-events: none;
+}
+
+.minimap-node { fill: var(--gb-accent-color); opacity: 0.8; }
+.minimap-node.selected { fill: var(--gb-selection-color); }
+.minimap-viewport { fill: rgba(123, 108, 217, 0.3); stroke: rgba(123, 108, 217, 0.8); stroke-width: 1px; }
