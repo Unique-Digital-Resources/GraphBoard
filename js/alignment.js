@@ -38,13 +38,13 @@ export class AlignmentManager {
                     break;
             }
 
-            const snapped = this.graphBoard.placementManager.getSnappedPos(targetX, targetY);
+            const snapped = this.graphBoard.placementManager.getSnappedPos(targetX, targetY, el.width, el.height);
             
             if (mode === 'left' || mode === 'right' || mode === 'center-v') {
-                el.x = snapped.x;
+                el.x = snapped.x + el.width / 2;
             }
             if (mode === 'top' || mode === 'bottom' || mode === 'center-h') {
-                el.y = snapped.y;
+                el.y = snapped.y + el.height / 2;
             }
 
             el.updatePosition(el.x, el.y);
@@ -78,8 +78,8 @@ export class AlignmentManager {
                 }
                 
                 let targetX = currentEdge + el.width / 2;
-                const snapped = this.graphBoard.placementManager.getSnappedPos(targetX, el.y);
-                el.x = snapped.x;
+                const snapped = this.graphBoard.placementManager.getSnappedPos(targetX, el.y, el.width, el.height);
+                el.x = snapped.x + el.width / 2;
                 el.updatePosition(el.x, el.y);
             });
 
@@ -100,8 +100,8 @@ export class AlignmentManager {
                 }
                 
                 let targetY = currentEdge + el.height / 2;
-                const snapped = this.graphBoard.placementManager.getSnappedPos(el.x, targetY);
-                el.y = snapped.y;
+                const snapped = this.graphBoard.placementManager.getSnappedPos(el.x, targetY, el.width, el.height);
+                el.y = snapped.y + el.height / 2;
                 el.updatePosition(el.x, el.y);
             });
         }

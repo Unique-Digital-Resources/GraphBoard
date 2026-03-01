@@ -30,19 +30,36 @@ export class GridManager {
             pattern.setAttribute("width", w);
             pattern.setAttribute("height", h);
             pattern.setAttribute("patternUnits", "userSpaceOnUse");
-            const midX = w / 2, midY = h / 2;
             if (type === 'lines') {
                 const path = document.createElementNS(this.svgNS, "path");
-                path.setAttribute("d", `M ${midX} 0 L ${midX} ${h} M 0 ${midY} L ${w} ${midY}`);
+                path.setAttribute("d", `M ${w} 0 L ${w} ${h} M 0 ${h} L ${w} ${h}`);
                 path.setAttribute("fill", "none");
                 path.setAttribute("class", isSub ? "grid-sub-line" : "grid-line");
                 pattern.appendChild(path);
             } else {
-                const c = document.createElementNS(this.svgNS, "circle");
-                c.setAttribute("cx", midX); c.setAttribute("cy", midY);
-                c.setAttribute("r", isSub ? 1 : 2);
-                c.setAttribute("class", isSub ? "grid-sub-dot" : "grid-dot");
-                pattern.appendChild(c);
+                const c1 = document.createElementNS(this.svgNS, "circle");
+                c1.setAttribute("cx", 0); c1.setAttribute("cy", 0);
+                c1.setAttribute("r", isSub ? 1 : 2);
+                c1.setAttribute("class", isSub ? "grid-sub-dot" : "grid-dot");
+                pattern.appendChild(c1);
+                
+                const c2 = document.createElementNS(this.svgNS, "circle");
+                c2.setAttribute("cx", w); c2.setAttribute("cy", 0);
+                c2.setAttribute("r", isSub ? 1 : 2);
+                c2.setAttribute("class", isSub ? "grid-sub-dot" : "grid-dot");
+                pattern.appendChild(c2);
+                
+                const c3 = document.createElementNS(this.svgNS, "circle");
+                c3.setAttribute("cx", 0); c3.setAttribute("cy", h);
+                c3.setAttribute("r", isSub ? 1 : 2);
+                c3.setAttribute("class", isSub ? "grid-sub-dot" : "grid-dot");
+                pattern.appendChild(c3);
+                
+                const c4 = document.createElementNS(this.svgNS, "circle");
+                c4.setAttribute("cx", w); c4.setAttribute("cy", h);
+                c4.setAttribute("r", isSub ? 1 : 2);
+                c4.setAttribute("class", isSub ? "grid-sub-dot" : "grid-dot");
+                pattern.appendChild(c4);
             }
             return pattern;
         };

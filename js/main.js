@@ -2,6 +2,7 @@ import { GridManager } from './grids.js';
 import { PlacementManager } from './placement.js';
 import { SelectionManager } from './selection.js';
 import { AlignmentManager } from './alignment.js';
+import { SmartGuidesManager } from './smart_guides.js';
 import { TestNode } from './_test_node.js';
 
 export class GraphBoard {
@@ -39,6 +40,7 @@ export class GraphBoard {
         this.placementManager = null;
         this.selectionManager = null;
         this.alignmentManager = null;
+        this.smartGuidesManager = null;
 
         this.onToast = options.onToast || ((msg) => console.log(msg));
         
@@ -90,6 +92,10 @@ export class GraphBoard {
         this.selectionManager.init();
 
         this.alignmentManager = new AlignmentManager(this);
+
+        this.smartGuidesManager = new SmartGuidesManager(this);
+        this.smartGuidesManager.init();
+        this.smartGuidesManager.setGridSizes(this.options.majorGrid, this.options.subGrid);
     }
 
     bindEvents() {
@@ -163,17 +169,20 @@ export class GraphBoard {
         const transformStr = `translate(${this.panX}, ${this.panY}) scale(${this.scale})`;
         this.contentLayer.setAttribute("transform", transformStr);
         this.gridManager.updateTransform(this.panX, this.panY, this.scale);
+        this.smartGuidesManager.updateTransform(this.panX, this.panY, this.scale);
         this.updateMinimap();
     }
 
     addTestNode(x, y, title) {
-        const snapped = this.placementManager.getSnappedPos(x, y);
-        
         const node = new TestNode({
-            x: snapped.x,
-            y: snapped.y,
+            x: x,
+            y: y,
             title: title
         });
+        
+        const snapped = this.placementManager.getSnappedPos(x, y, node.width, node.height);
+        node.x = snapped.x + node.width / 2;
+        node.y = snapped.y + node.height / 2;
 
         const dom = node.createDOM(this.svgNS);
         this.contentLayer.appendChild(dom);
@@ -228,20 +237,22 @@ export class GraphBoard {
                 let targetX = startPos.x + dxWorld;
                 let targetY = startPos.y + dyWorld;
 
-                const snapped = this.placementManager.getSnappedPos(targetX, targetY);
-                el.x = snapped.x;
-                el.y = snapped.y;
+                const snapped = this.placementManager.getSnappedPos(targetX, targetY, el.width, el.height);
+                el.x = snapped.x + el.width / 2;
+                el.y = snapped.y + el.height / 2;
 
                 el.updatePosition(el.x, el.y);
             }
         });
         
+        this.smartGuidesManager.updateGuides();
         this.updateMinimap();
     }
 
     endDragElements() {
         this.isDraggingElements = false;
         this.container.classList.remove('dragging-element');
+        this.smartGuidesManager.clearGuides();
     }
 
     setGridType(type) {
@@ -257,6 +268,7 @@ export class GraphBoard {
     setSnapMode(mode) {
         this.options.snapMode = mode;
         this.placementManager.setSnapMode(mode);
+        this.smartGuidesManager.setGridSizes(this.options.majorGrid, this.options.subGrid);
         const labels = { off: "Snapping Off", major: "Snap to Major", sub: "Snap to Sub-grid" };
         this.showToast(labels[mode]);
     }
