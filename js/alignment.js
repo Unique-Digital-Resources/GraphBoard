@@ -110,6 +110,66 @@ export class AlignmentManager {
         this.graphBoard.showToast("Distributed elements");
     }
 
+    wrapElements(direction = 'h', cols = null) {
+        const selected = this.graphBoard.selectionManager.getSelected();
+        if (selected.length < 2) {
+            this.graphBoard.showToast("Select 2+ elements to wrap");
+            return;
+        }
+
+        const n = selected.length;
+
+        // Auto-compute grid dimensions if not provided
+        let gridCols, gridRows;
+        if (direction === 'h') {
+            gridCols = cols != null ? Math.max(1, Math.min(cols, n)) : Math.ceil(Math.sqrt(n));
+            gridRows = Math.ceil(n / gridCols);
+        } else {
+            gridRows = cols != null ? Math.max(1, Math.min(cols, n)) : Math.ceil(Math.sqrt(n));
+            gridCols = Math.ceil(n / gridRows);
+        }
+
+        // Anchor to top-left of current selection bounds
+        const bounds = this.getSelectionBounds(selected);
+
+        // Sort: left-to-right, then top-to-bottom (reading order)
+        const sorted = [...selected].sort((a, b) =>
+            a.x !== b.x ? a.x - b.x : a.y - b.y
+        );
+
+        // Cell size = largest element dimensions in selection
+        const cellW = Math.max(...sorted.map(el => el.width));
+        const cellH = Math.max(...sorted.map(el => el.height));
+
+        // Gap: half of majorGrid so layout breathes but stays compact
+        const gap = (this.graphBoard.options.majorGrid || 100) * 0.5;
+        const stepX = cellW + gap;
+        const stepY = cellH + gap;
+
+        const startX = bounds.left;
+        const startY = bounds.top;
+
+        sorted.forEach((el, i) => {
+            const col = direction === 'h' ? (i % gridCols)              : Math.floor(i / gridRows);
+            const row = direction === 'h' ? Math.floor(i / gridCols)    : (i % gridRows);
+
+            const cx = startX + col * stepX + el.width  / 2;
+            const cy = startY + row * stepY + el.height / 2;
+
+            const snapped = this.graphBoard.placementManager.getSnappedPos(cx, cy, el.width, el.height);
+            el.x = snapped.x + el.width  / 2;
+            el.y = snapped.y + el.height / 2;
+            el.updatePosition(el.x, el.y);
+        });
+
+        this.graphBoard.updateMinimap();
+        this.graphBoard.showToast(
+            direction === 'h'
+                ? `Wrapped in ${gridCols}-col rows`
+                : `Wrapped in ${gridRows}-row columns`
+        );
+    }
+
     getSelectionBounds(elements) {
         let minL = Infinity, maxR = -Infinity;
         let minT = Infinity, maxB = -Infinity;

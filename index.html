@@ -33,6 +33,10 @@
                 <span>Show Sub-grid</span>
                 <input type="checkbox" id="sub-grid-toggle" checked>
             </div>
+            <div class="toggle-row" style="margin-top:6px">
+                <span>Show Rulers</span>
+                <input type="checkbox" id="rulers-toggle" checked>
+            </div>
         </div>
         
         <div class="control-group">
@@ -65,6 +69,22 @@
                     <div class="dist-grid">
                         <button class="tool-btn" title="Distribute Horizontally" data-dist="h">↔</button>
                         <button class="tool-btn" title="Distribute Vertically" data-dist="v">↕</button>
+                    </div>
+                </div>
+
+                <div class="tool-section wrap-section">
+                    <h3>Wrap</h3>
+                    <div class="wrap-cols-row">
+                        <span class="wrap-label">Columns</span>
+                        <input type="number" id="wrap-cols" value="3" min="1" max="20" class="wrap-input">
+                    </div>
+                    <div class="wrap-btn-row">
+                        <button class="tool-btn wrap-btn" title="Wrap — flow left→right, break into rows" data-wrap="h">
+                            <span class="wrap-icon">⊞</span> Rows
+                        </button>
+                        <button class="tool-btn wrap-btn" title="Wrap — flow top→down, break into columns" data-wrap="v">
+                            <span class="wrap-icon">⊟</span> Cols
+                        </button>
                     </div>
                 </div>
             </div>
@@ -186,6 +206,10 @@
             grid.toggleSubGrid(e.target.checked);
         });
 
+        document.getElementById('rulers-toggle').addEventListener('change', (e) => {
+            grid.toggleRulers(e.target.checked);
+        });
+
         document.getElementById('snap-mode').addEventListener('change', (e) => {
             grid.setSnapMode(e.target.value);
         });
@@ -196,6 +220,13 @@
 
         document.querySelectorAll('[data-dist]').forEach(btn => {
             btn.addEventListener('click', () => grid.distributeNodes(btn.dataset.dist));
+        });
+
+        document.querySelectorAll('[data-wrap]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const cols = parseInt(document.getElementById('wrap-cols').value, 10) || null;
+                grid.wrapElements(btn.dataset.wrap, cols);
+            });
         });
 
         document.getElementById('zoom-in-btn').addEventListener('click', () => 

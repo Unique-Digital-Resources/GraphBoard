@@ -3,6 +3,7 @@ import { PlacementManager } from './placement.js';
 import { SelectionManager } from './selection.js';
 import { AlignmentManager } from './alignment.js';
 import { SmartGuidesManager } from './smart_guides.js';
+import { RulersManager } from './rulers.js';
 import { TestNode } from './_test_node.js';
 
 export class GraphBoard {
@@ -41,6 +42,7 @@ export class GraphBoard {
         this.selectionManager = null;
         this.alignmentManager = null;
         this.smartGuidesManager = null;
+        this.rulersManager = null;
 
         this.onToast = options.onToast || ((msg) => console.log(msg));
         
@@ -96,6 +98,13 @@ export class GraphBoard {
         this.smartGuidesManager = new SmartGuidesManager(this);
         this.smartGuidesManager.init();
         this.smartGuidesManager.setGridSizes(this.options.majorGrid, this.options.subGrid);
+
+        this.rulersManager = new RulersManager(this, {
+            majorGrid:   this.options.majorGrid,
+            subGrid:     this.options.subGrid,
+            showRulers:  this.options.showRulers !== false
+        });
+        this.rulersManager.init();
     }
 
     bindEvents() {
@@ -170,6 +179,7 @@ export class GraphBoard {
         this.contentLayer.setAttribute("transform", transformStr);
         this.gridManager.updateTransform(this.panX, this.panY, this.scale);
         this.smartGuidesManager.updateTransform(this.panX, this.panY, this.scale);
+        if (this.rulersManager) this.rulersManager.render();
         this.updateMinimap();
     }
 
@@ -265,6 +275,10 @@ export class GraphBoard {
         this.gridManager.toggleSubGrid(show);
     }
 
+    toggleRulers(show) {
+        if (this.rulersManager) this.rulersManager.toggleRulers(show);
+    }
+
     setSnapMode(mode) {
         this.options.snapMode = mode;
         this.placementManager.setSnapMode(mode);
@@ -279,6 +293,10 @@ export class GraphBoard {
 
     distributeNodes(direction) {
         this.alignmentManager.distributeNodes(direction);
+    }
+
+    wrapElements(direction, cols) {
+        this.alignmentManager.wrapElements(direction, cols);
     }
 
     resetView() {
