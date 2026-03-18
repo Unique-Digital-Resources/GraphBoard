@@ -87,6 +87,18 @@
                         </button>
                     </div>
                 </div>
+
+                <div class="tool-section wrap-section">
+                    <h3>Justify</h3>
+                    <div class="wrap-btn-row">
+                        <button class="tool-btn wrap-btn" title="Justify Horizontally — fill horizontal space with no gaps" data-justify="h">
+                            <span class="wrap-icon">⫴</span> Horizontal
+                        </button>
+                        <button class="tool-btn wrap-btn" title="Justify Vertically — fill vertical space with no gaps" data-justify="v">
+                            <span class="wrap-icon">⫵</span> Vertical
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -226,6 +238,16 @@
             btn.addEventListener('click', () => {
                 const cols = parseInt(document.getElementById('wrap-cols').value, 10) || null;
                 grid.wrapElements(btn.dataset.wrap, cols);
+            });
+        });
+
+        document.querySelectorAll('[data-justify]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (btn.dataset.justify === 'h') {
+                    grid.justifyHorizontally();
+                } else {
+                    grid.justifyVertically();
+                }
             });
         });
 

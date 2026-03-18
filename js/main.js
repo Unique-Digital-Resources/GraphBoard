@@ -299,6 +299,14 @@ export class GraphBoard {
         this.alignmentManager.wrapElements(direction, cols);
     }
 
+    justifyHorizontally() {
+        this.alignmentManager.justifyHorizontally();
+    }
+
+    justifyVertically() {
+        this.alignmentManager.justifyVertically();
+    }
+
     resetView() {
         this.scale = 1;
         this.panX = 0;

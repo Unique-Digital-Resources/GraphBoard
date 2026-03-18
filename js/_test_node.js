@@ -12,11 +12,11 @@ export class TestNode extends GraphElement {
     }
 
     render(svgNS) {
-        const rect = document.createElementNS(svgNS, "rect");
-        rect.setAttribute("width", this.width);
-        rect.setAttribute("height", this.height);
-        rect.setAttribute("x", -this.width / 2);
-        rect.setAttribute("y", -this.height / 2);
+        this.rect = document.createElementNS(svgNS, "rect");
+        this.rect.setAttribute("width", this.width);
+        this.rect.setAttribute("height", this.height);
+        this.rect.setAttribute("x", -this.width / 2);
+        this.rect.setAttribute("y", -this.height / 2);
         
         const text = document.createElementNS(svgNS, "text");
         text.textContent = this.title;
@@ -24,8 +24,18 @@ export class TestNode extends GraphElement {
         text.setAttribute("y", 5);
         text.setAttribute("text-anchor", "middle");
         
-        this.el.appendChild(rect);
+        this.el.appendChild(this.rect);
         this.el.appendChild(text);
+    }
+
+    updateSize(width, height) {
+        super.updateSize(width, height);
+        if (this.rect) {
+            this.rect.setAttribute("width", this.width);
+            this.rect.setAttribute("height", this.height);
+            this.rect.setAttribute("x", -this.width / 2);
+            this.rect.setAttribute("y", -this.height / 2);
+        }
     }
 
     setTitle(title) {

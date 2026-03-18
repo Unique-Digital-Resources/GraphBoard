@@ -5,6 +5,9 @@ export class GraphElement {
         this.y = options.y || 0;
         this.width = options.width || 100;
         this.height = options.height || 50;
+        this.minWidth = options.minWidth || 0;
+        this.minHeight = options.minHeight || 0;
+        this.locked = options.locked || false;
         this.type = options.type || 'element';
         this.el = null;
         this.minimapDot = null;
@@ -31,6 +34,11 @@ export class GraphElement {
         if (this.el) {
             this.el.setAttribute("transform", `translate(${this.x}, ${this.y})`);
         }
+    }
+
+    updateSize(width, height) {
+        this.width = width;
+        this.height = height;
     }
 
     setSelected(isSelected) {
