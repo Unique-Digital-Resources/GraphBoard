@@ -1,7 +1,7 @@
 import { GridManager } from './grids.js';
 import { PlacementManager } from './placement.js';
 import { SelectionManager } from './selection.js';
-import { AlignmentManager } from './alignment.js';
+import { AlignmentManager } from './utility/alignment.js';
 import { SmartGuidesManager } from './smart_guides.js';
 import { RulersManager } from './rulers.js';
 import { TestNode } from './_test_node.js';
