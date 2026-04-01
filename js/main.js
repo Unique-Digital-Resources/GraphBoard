@@ -34,6 +34,7 @@ export class GraphBoard {
         this.dragStartPositions = [];
 
         this.elements = [];
+        this._extensions = {};
         
         this.svgNS = "http://www.w3.org/2000/svg";
         
@@ -345,5 +346,65 @@ export class GraphBoard {
         if (this.onToast) {
             this.onToast(msg);
         }
+    }
+
+    // ─── Extension support ───
+
+    /**
+     * Convert screen coordinates to world (content) coordinates.
+     */
+    screenToWorld(screenX, screenY) {
+        const rect = this.container.getBoundingClientRect();
+        return {
+            x: (screenX - rect.left - this.panX) / this.scale,
+            y: (screenY - rect.top - this.panY) / this.scale
+        };
+    }
+
+    /**
+     * Remove an element from the board by id.
+     */
+    removeElement(elementId) {
+        const idx = this.elements.findIndex(e => e.id === elementId);
+        if (idx === -1) return;
+        const el = this.elements[idx];
+        el.destroy();
+        this.elements.splice(idx, 1);
+        if (this.selectionManager.selectedElements.has(elementId)) {
+            this.selectionManager.selectedElements.delete(elementId);
+            this.selectionManager.notifySelectionChange();
+        }
+        this.updateMinimap();
+    }
+
+    /**
+     * Create a dedicated SVG layer inside contentLayer for an extension.
+     * @param {string} className - CSS class for the layer group
+     * @param {boolean} [prepend=false] - Insert before content children instead of appending
+     * @returns {SVGGElement}
+     */
+    createLayer(className, prepend = false) {
+        const g = document.createElementNS(this.svgNS, 'g');
+        g.setAttribute('class', className);
+        if (prepend) {
+            this.contentLayer.insertBefore(g, this.contentLayer.firstChild);
+        } else {
+            this.contentLayer.appendChild(g);
+        }
+        return g;
+    }
+
+    /**
+     * Register an extension by name.
+     */
+    registerExtension(name, ext) {
+        this._extensions[name] = ext;
+    }
+
+    /**
+     * Get a registered extension by name.
+     */
+    getExtension(name) {
+        return this._extensions[name] || null;
     }
 }

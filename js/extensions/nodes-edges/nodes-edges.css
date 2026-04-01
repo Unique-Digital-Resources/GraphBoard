@@ -1,0 +1,159 @@
+/* ═══════════════════════════════════════════════════════════════
+   Nodes & Edges Extension — Styles & Animations
+   Include this file to enable edge rendering visuals.
+   Customize or extend by adding your own animation classes.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── Edge paths ─── */
+.ge-hit {
+    pointer-events: stroke;
+    cursor: pointer;
+}
+
+.ge-vis {
+    pointer-events: none;
+}
+
+/* ─── Outline paths (focus / selection) ─── */
+.ge-outline-focus,
+.ge-outline-sel {
+    pointer-events: none;
+}
+
+/* ─── Connection preview line ─── */
+.ge-connect-preview {
+    pointer-events: none;
+}
+
+.ge-vis {
+    pointer-events: none;
+    transition: filter 0.2s, stroke-width 0.15s;
+}
+
+/* ─── Hovered edge focus outline ─── */
+.ge-hit:hover + .ge-vis,
+.ge-vis.ge-hovered {
+    filter: drop-shadow(0 0 4px rgba(224, 159, 62, 0.6))
+            drop-shadow(0 0 8px rgba(224, 159, 62, 0.25));
+}
+
+/* ─── Selected edge glow ─── */
+.ge-selected {
+    filter: drop-shadow(0 0 6px rgba(224, 159, 62, 0.7))
+            drop-shadow(0 0 14px rgba(224, 159, 62, 0.3));
+    animation: ge-sel-glow 1.6s ease-in-out infinite;
+}
+
+@keyframes ge-sel-glow {
+    0%, 100% {
+        filter: drop-shadow(0 0 5px rgba(224, 159, 62, 0.5))
+                drop-shadow(0 0 10px rgba(224, 159, 62, 0.2));
+    }
+    50% {
+        filter: drop-shadow(0 0 10px rgba(224, 159, 62, 0.9))
+                drop-shadow(0 0 22px rgba(224, 159, 62, 0.45));
+    }
+}
+
+/* ─── Animation: Flow (moving dashes) ─── */
+.ge-anim-flow {
+    stroke-dasharray: 12 16 !important;
+    animation: ge-edge-flow 1s linear infinite;
+}
+
+@keyframes ge-edge-flow {
+    to { stroke-dashoffset: -28; }
+}
+
+/* ─── Animation: Pulse (opacity breathing) ─── */
+.ge-anim-pulse {
+    animation: ge-edge-pulse 2s ease-in-out infinite;
+}
+
+@keyframes ge-edge-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+}
+
+/* ─── Animation: March (marching ants) ─── */
+.ge-anim-march {
+    stroke-dasharray: 8 5 !important;
+    animation: ge-edge-march 0.4s linear infinite;
+}
+
+@keyframes ge-edge-march {
+    to { stroke-dashoffset: -13; }
+}
+
+/* ─── Combined: selected + animation ─── */
+.ge-selected.ge-anim-flow {
+    animation: ge-sel-glow 1.6s ease-in-out infinite, ge-edge-flow 1s linear infinite;
+}
+.ge-selected.ge-anim-pulse {
+    animation: ge-sel-glow 1.6s ease-in-out infinite, ge-edge-pulse 2s ease-in-out infinite;
+}
+.ge-selected.ge-anim-march {
+    animation: ge-sel-glow 1.6s ease-in-out infinite, ge-edge-march 0.4s linear infinite;
+}
+
+/* ─── Connection preview line ─── */
+.ge-connect-preview {
+    pointer-events: none;
+}
+
+/* ─── GraphNode ports ─── */
+.gn-port {
+    fill: var(--gb-accent-color, #7b6cd9);
+    stroke: var(--gb-bg-color, #1e1e1e);
+    stroke-width: 2px;
+    opacity: 0;
+    transition: opacity 0.15s, fill 0.15s;
+    cursor: crosshair;
+    pointer-events: all;
+}
+
+.graph-element:hover .gn-port,
+.gn-port.gn-port-visible {
+    opacity: 1;
+}
+
+.gn-port:hover {
+    fill: #fff;
+}
+
+/* ─── GraphNode body ─── */
+.gn-body {
+    fill: #252526;
+    stroke: var(--gb-accent-color, #7b6cd9);
+    stroke-width: 2px;
+    rx: 6;
+    transition: stroke 0.1s, fill 0.1s, filter 0.1s;
+}
+
+.graph-element:hover .gn-body {
+    fill: #2d2d30;
+    stroke: var(--gb-accent-hover, #9f92e6);
+}
+
+.graph-element.selected .gn-body {
+    stroke: var(--gb-selection-color, #ff6b6b);
+    stroke-width: 3px;
+    filter: drop-shadow(0 0 8px rgba(255, 107, 107, 0.4));
+}
+
+/* ─── GraphNode label ─── */
+.gn-label {
+    fill: white;
+    font-size: 13px;
+    font-weight: 600;
+    pointer-events: none;
+    user-select: none;
+}
+
+/* ─── Reduced motion ─── */
+@media (prefers-reduced-motion: reduce) {
+    .ge-vis, .gn-body, .gn-port {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+    }
+}

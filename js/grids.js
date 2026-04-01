@@ -24,6 +24,8 @@ export class GridManager {
         this.defs.innerHTML = '';
         this.gridLayer.innerHTML = '';
 
+        if (this.options.gridType === 'none') return;
+
         const createPattern = (id, w, h, type, isSub = false) => {
             const pattern = document.createElementNS(this.svgNS, "pattern");
             pattern.setAttribute("id", id);

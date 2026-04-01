@@ -6,6 +6,7 @@
     <title>GraphBoard Component Test</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="js/main.css">
+    <link rel="stylesheet" href="js/extensions/nodes-edges/nodes-edges.css">
 </head>
 <body>
     <div id="app-container"></div>
@@ -25,6 +26,7 @@
             <select id="grid-type">
                 <option value="lines">Lines</option>
                 <option value="dots">Dots</option>
+                <option value="none">None</option>
             </select>
         </div>
 
@@ -102,6 +104,68 @@
             </div>
         </div>
 
+        <div class="control-group">
+            <label>Edge Outline Colors</label>
+            <div class="tool-section">
+                <div class="edge-outline-row">
+                    <span class="edge-outline-label">Focus</span>
+                    <input type="color" id="focus-outline-color" value="#e09f3e" class="edge-color-input">
+                </div>
+                <div class="edge-outline-row" style="margin-top:6px">
+                    <span class="edge-outline-label">Selection</span>
+                    <input type="color" id="sel-outline-color" value="#ff6b6b" class="edge-color-input">
+                </div>
+            </div>
+        </div>
+
+        <div class="control-group" id="edge-controls" style="display:none">
+            <label>Edge Properties <span id="edge-info" style="color:#e09f3e"></span></label>
+
+            <div class="tool-section">
+                <h3>Path Method</h3>
+                <div class="edge-method-grid">
+                    <button class="edge-opt" data-method="default">Default</button>
+                    <button class="edge-opt" data-method="straight">Straight</button>
+                    <button class="edge-opt" data-method="squared">Squared</button>
+                    <button class="edge-opt" data-method="astar">A*</button>
+                </div>
+            </div>
+
+            <div class="tool-section">
+                <h3>Stroke Style</h3>
+                <div class="edge-method-grid">
+                    <button class="edge-opt" data-style="solid">Solid</button>
+                    <button class="edge-opt" data-style="dashed">Dashed</button>
+                </div>
+            </div>
+
+            <div class="tool-section">
+                <h3>Animation</h3>
+                <div class="edge-method-grid">
+                    <button class="edge-opt" data-anim="none">None</button>
+                    <button class="edge-opt" data-anim="flow">Flow</button>
+                    <button class="edge-opt" data-anim="pulse">Pulse</button>
+                    <button class="edge-opt" data-anim="march">March</button>
+                </div>
+            </div>
+
+            <div class="tool-section">
+                <h3>Stroke Width</h3>
+                <div class="edge-width-row">
+                    <input type="range" id="edge-width" min="1" max="10" step="0.5" value="3" class="edge-width-slider">
+                    <span id="edge-width-val" class="edge-width-val">3px</span>
+                </div>
+            </div>
+
+            <div class="tool-section">
+                <h3>Colors</h3>
+                <div id="edge-colors"></div>
+                <button id="edge-add-color" class="edge-add-color-btn">+ Add Color</button>
+            </div>
+
+            <button id="edge-delete" class="edge-delete-btn">Delete Edge</button>
+        </div>
+
         <div class="row">
             <button id="zoom-in-btn">Zoom +</button>
             <button id="zoom-out-btn">Zoom -</button>
@@ -125,6 +189,7 @@
 
     <script type="module">
         import { GraphBoard } from './js/main.js';
+        import { NodesEdgesExtension } from './js/extensions/nodes-edges/index.js';
 
         class GraphBoardWithMinimap extends GraphBoard {
             constructor(containerId, options = {}) {
@@ -202,12 +267,182 @@
             onToast: showToast
         });
 
-        // Add test nodes
-        grid.addTestNode(0, 0, "Start Node");
-        grid.addTestNode(200, -150, "Process A");
-        grid.addTestNode(-250, 100, "Input");
-        grid.addTestNode(300, 200, "Output");
-        grid.addTestNode(0, 300, "End Node");
+        // ─── Install the Nodes & Edges extension ───
+        const edgeControls = document.getElementById('edge-controls');
+        const edgeInfo = document.getElementById('edge-info');
+        const edgeColorsDiv = document.getElementById('edge-colors');
+        const edgeWidthSlider = document.getElementById('edge-width');
+        const edgeWidthVal = document.getElementById('edge-width-val');
+
+        function showEdgePanel(edge) {
+            edgeControls.style.display = '';
+            edgeInfo.textContent = `(${edge.id})`;
+            syncEdgePanel(edge);
+        }
+
+        function hideEdgePanel() {
+            edgeControls.style.display = 'none';
+        }
+
+        function syncEdgePanel(edge) {
+            document.querySelectorAll('.edge-opt[data-method]').forEach(b => {
+                b.classList.toggle('active', b.dataset.method === edge.method);
+            });
+            document.querySelectorAll('.edge-opt[data-style]').forEach(b => {
+                b.classList.toggle('active', b.dataset.style === edge.strokeStyle);
+            });
+            document.querySelectorAll('.edge-opt[data-anim]').forEach(b => {
+                b.classList.toggle('active', b.dataset.anim === edge.animation);
+            });
+            edgeWidthSlider.value = edge.strokeWidth;
+            edgeWidthVal.textContent = edge.strokeWidth + 'px';
+            renderColorInputs(edge);
+        }
+
+        function renderColorInputs(edge) {
+            edgeColorsDiv.innerHTML = '';
+            edge.colors.forEach((c, i) => {
+                const row = document.createElement('div');
+                row.className = 'edge-color-row';
+
+                const input = document.createElement('input');
+                input.type = 'color';
+                input.value = c;
+                input.className = 'edge-color-input';
+                input.addEventListener('input', () => {
+                    edge.colors[i] = input.value;
+                    hexSpan.textContent = input.value.toUpperCase();
+                    nodesEdges.edgeManager.renderEdge(edge);
+                });
+
+                const hexSpan = document.createElement('span');
+                hexSpan.className = 'edge-color-hex';
+                hexSpan.textContent = c.toUpperCase();
+
+                const rmBtn = document.createElement('button');
+                rmBtn.className = 'edge-color-rm';
+                rmBtn.innerHTML = '&times;';
+                rmBtn.disabled = edge.colors.length <= 1;
+                rmBtn.addEventListener('click', () => {
+                    edge.colors.splice(i, 1);
+                    nodesEdges.edgeManager.renderEdge(edge);
+                    renderColorInputs(edge);
+                });
+
+                row.append(input, hexSpan, rmBtn);
+                edgeColorsDiv.appendChild(row);
+            });
+        }
+
+        const nodesEdges = new NodesEdgesExtension(grid, {
+            onEdgeSelect: (edge) => showEdgePanel(edge),
+            onEdgeDeselect: () => hideEdgePanel(),
+            onEdgeCreate: (edge) => showToast('Connection created'),
+        });
+        nodesEdges.install();
+        grid.registerExtension('nodes-edges', nodesEdges);
+
+        // Edge panel event bindings
+        document.querySelectorAll('.edge-opt[data-method]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const edge = nodesEdges.edgeManager.getSelectedEdge();
+                if (!edge) return;
+                edge.method = btn.dataset.method;
+                nodesEdges.edgeManager.renderEdge(edge);
+                syncEdgePanel(edge);
+            });
+        });
+
+        document.querySelectorAll('.edge-opt[data-style]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const edge = nodesEdges.edgeManager.getSelectedEdge();
+                if (!edge) return;
+                edge.strokeStyle = btn.dataset.style;
+                nodesEdges.edgeManager.renderEdge(edge);
+                syncEdgePanel(edge);
+            });
+        });
+
+        document.querySelectorAll('.edge-opt[data-anim]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const edge = nodesEdges.edgeManager.getSelectedEdge();
+                if (!edge) return;
+                edge.animation = btn.dataset.anim;
+                nodesEdges.edgeManager.renderEdge(edge);
+                syncEdgePanel(edge);
+            });
+        });
+
+        edgeWidthSlider.addEventListener('input', () => {
+            const edge = nodesEdges.edgeManager.getSelectedEdge();
+            if (!edge) return;
+            edge.strokeWidth = parseFloat(edgeWidthSlider.value);
+            edgeWidthVal.textContent = edge.strokeWidth + 'px';
+            nodesEdges.edgeManager.renderEdge(edge);
+        });
+
+        document.getElementById('edge-add-color').addEventListener('click', () => {
+            const edge = nodesEdges.edgeManager.getSelectedEdge();
+            if (!edge || edge.colors.length >= 8) return;
+            edge.colors.push('#888888');
+            nodesEdges.edgeManager.renderEdge(edge);
+            renderColorInputs(edge);
+        });
+
+        document.getElementById('edge-delete').addEventListener('click', () => {
+            const edge = nodesEdges.edgeManager.getSelectedEdge();
+            if (!edge) return;
+            nodesEdges.edgeManager.removeEdge(edge.id);
+            hideEdgePanel();
+            showToast('Edge deleted');
+        });
+
+        // Outline color pickers
+        document.getElementById('focus-outline-color').addEventListener('input', (e) => {
+            nodesEdges.edgeManager.setFocusOutlineColor(e.target.value);
+        });
+        document.getElementById('sel-outline-color').addEventListener('input', (e) => {
+            nodesEdges.edgeManager.setSelectionOutlineColor(e.target.value);
+        });
+
+        // Add nodes via the extension (with ports)
+        const n1 = nodesEdges.addNode(0, 0, "Start Node");
+        const n2 = nodesEdges.addNode(200, -150, "Process A");
+        const n3 = nodesEdges.addNode(-250, 100, "Input");
+        const n4 = nodesEdges.addNode(300, 200, "Output");
+        const n5 = nodesEdges.addNode(0, 300, "End Node");
+
+        // Add demo edges between nodes
+        nodesEdges.addEdge(n1.id, n2.id, 'right', 'left', {
+            colors: ['#e09f3e', '#4ade80'],
+            method: 'default',
+            strokeWidth: 3,
+        });
+        nodesEdges.addEdge(n2.id, n4.id, 'bottom', 'top', {
+            colors: ['#f87171'],
+            strokeStyle: 'dashed',
+            method: 'squared',
+            strokeWidth: 3,
+            animation: 'flow',
+        });
+        nodesEdges.addEdge(n1.id, n3.id, 'left', 'right', {
+            colors: ['#a78bfa', '#38bdf8'],
+            method: 'default',
+            strokeWidth: 3,
+            animation: 'march',
+        });
+        nodesEdges.addEdge(n3.id, n4.id, 'right', 'left', {
+            colors: ['#4ade80', '#fbbf24', '#f87171'],
+            strokeStyle: 'dashed',
+            method: 'squared',
+            strokeWidth: 4,
+            animation: 'pulse',
+        });
+        nodesEdges.addEdge(n1.id, n5.id, 'bottom', 'top', {
+            colors: ['#e09f3e'],
+            method: 'straight',
+            strokeWidth: 2,
+        });
 
         // UI Bindings
         document.getElementById('grid-type').addEventListener('change', (e) => {
