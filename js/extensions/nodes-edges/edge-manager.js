@@ -9,6 +9,7 @@ export class EdgeManager {
         this._selectedEdgeId = null;
 
         this._edgeLayer = null;
+        this._slotLayer = null;
         this._previewLine = null;
         this._connectState = null;
 
@@ -19,6 +20,7 @@ export class EdgeManager {
         this._onEdgeDeselect = options.onEdgeDeselect || null;
         this._onEdgeCreate = options.onEdgeCreate || null;
         this._onEdgeDelete = options.onEdgeDelete || null;
+        this._onEdgeLabelChange = options.onEdgeLabelChange || null;
     }
 
     init() {
@@ -27,6 +29,10 @@ export class EdgeManager {
         this._edgeLayer = document.createElementNS(svgNS, 'g');
         this._edgeLayer.setAttribute('class', 'edge-layer');
         this.board.contentLayer.insertBefore(this._edgeLayer, this.board.contentLayer.firstChild);
+
+        this._slotLayer = document.createElementNS(svgNS, 'g');
+        this._slotLayer.setAttribute('class', 'slot-layer');
+        this.board.contentLayer.appendChild(this._slotLayer);
 
         this._previewLine = document.createElementNS(svgNS, 'line');
         this._previewLine.setAttribute('stroke', 'rgba(224,159,62,0.5)');
@@ -41,7 +47,9 @@ export class EdgeManager {
         return this._edgeLayer;
     }
 
-    // ─── Outline colors ───
+    getSlotLayer() {
+        return this._slotLayer;
+    }
 
     setFocusOutlineColor(color) {
         this.focusOutlineColor = color;
@@ -53,11 +61,11 @@ export class EdgeManager {
         this.renderAll();
     }
 
-    // ─── Edge CRUD ───
-
     addEdge(sourceId, targetId, sourceDir, targetDir, props = {}) {
         if (sourceId === targetId) return null;
         if (this.edges.find(e => e.sourceId === sourceId && e.targetId === targetId)) return null;
+
+        const defaultSlotColor = (props.colors && props.colors[0]) || '#e09f3e';
 
         const edge = new GraphEdge({
             id: `edge-${this._nextEdgeId++}`,
@@ -70,11 +78,22 @@ export class EdgeManager {
             method: props.method,
             strokeWidth: props.strokeWidth,
             animation: props.animation,
+            label: props.label || '',
+            labelBgColor: props.labelBgColor,
+            labelTextColor: props.labelTextColor,
+            labelFontSize: props.labelFontSize,
+            labelPaddingX: props.labelPaddingX,
+            labelPaddingY: props.labelPaddingY,
+            sourceSlotStyle: props.sourceSlotStyle || 'circle',
+            sourceSlotColor: props.sourceSlotColor || defaultSlotColor,
+            targetSlotStyle: props.targetSlotStyle || 'circle',
+            targetSlotColor: props.targetSlotColor || defaultSlotColor,
             data: props.data
         });
 
         const dom = edge.createDOM(this.board.svgNS);
         this._edgeLayer.appendChild(dom);
+        edge.attachSlots(this._slotLayer);
         this._setupEdgeEvents(edge);
         this.edges.push(edge);
         this.renderEdge(edge);
@@ -104,8 +123,6 @@ export class EdgeManager {
         return this.edges.filter(e => e.sourceId === nodeId || e.targetId === nodeId);
     }
 
-    // ─── Selection ───
-
     selectEdge(edgeId) {
         this.deselectAll();
         this._selectedEdgeId = edgeId;
@@ -129,8 +146,6 @@ export class EdgeManager {
         return this._selectedEdgeId ? this.getEdge(this._selectedEdgeId) : null;
     }
 
-    // ─── Rendering ───
-
     renderAll() {
         for (const edge of this.edges) {
             this.renderEdge(edge);
@@ -145,23 +160,29 @@ export class EdgeManager {
         const sp = sourceNode.getPortWorldPos(edge.sourceDir);
         const tp = targetNode.getPortWorldPos(edge.targetDir);
 
+        const dirOffsets = { right: [1, 0], left: [-1, 0], bottom: [0, 1], top: [0, -1] };
+        const srcOff = edge.getSlotOffset('source');
+        const tgtOff = edge.getSlotOffset('target');
+        const sDir = dirOffsets[edge.sourceDir] || [1, 0];
+        const tDir = dirOffsets[edge.targetDir] || [1, 0];
+        const pathSP = { x: sp.x + sDir[0] * srcOff, y: sp.y + sDir[1] * srcOff };
+        const pathTP = { x: tp.x + tDir[0] * tgtOff, y: tp.y + tDir[1] * tgtOff };
+
         let astarOpts = null;
         if (edge.method === 'astar') {
             astarOpts = this._buildAStarGrid(new Set([edge.sourceId, edge.targetId]));
-            // Convert world coords to screen coords for A* grid search
             const scale = this.board.scale;
             const panX = this.board.panX;
             const panY = this.board.panY;
-            astarOpts.srcScreen = { x: sp.x * scale + panX, y: sp.y * scale + panY };
-            astarOpts.tgtScreen = { x: tp.x * scale + panX, y: tp.y * scale + panY };
-            // Inverse conversion: screen → world
+            astarOpts.srcScreen = { x: pathSP.x * scale + panX, y: pathSP.y * scale + panY };
+            astarOpts.tgtScreen = { x: pathTP.x * scale + panX, y: pathTP.y * scale + panY };
             astarOpts.invScale = 1 / scale;
             astarOpts.invPanX = -panX / scale;
             astarOpts.invPanY = -panY / scale;
         }
 
         const pathD = PathMethods.compute(
-            edge.method, sp.x, sp.y, tp.x, tp.y,
+            edge.method, pathSP.x, pathSP.y, pathTP.x, pathTP.y,
             edge.sourceDir, edge.targetDir, astarOpts
         );
 
@@ -189,7 +210,6 @@ export class EdgeManager {
         this.board.elements.forEach(n => {
             if (!n.getPortWorldPos || (excludeIds && excludeIds.has(n.id))) return;
             const b = n.getBounds();
-            // Convert world bounds to screen bounds
             const sl = b.left * scale + panX;
             const sr = b.right * scale + panX;
             const st = b.top * scale + panY;
@@ -205,8 +225,6 @@ export class EdgeManager {
 
         return { blockedCells: blocked, gridW: W, gridH: H, cellSize: CELL };
     }
-
-    // ─── Connection Drag Interaction ───
 
     startConnect(nodeId, dir, worldX, worldY) {
         this._connectState = { nodeId, dir, startX: worldX, startY: worldY };
@@ -245,8 +263,6 @@ export class EdgeManager {
         return this._connectState;
     }
 
-    // ─── Events ───
-
     _setupEdgeEvents(edge) {
         if (!edge._hitPath) return;
         edge._hitPath.addEventListener('click', (e) => {
@@ -263,6 +279,89 @@ export class EdgeManager {
         });
         edge._hitPath.addEventListener('mouseleave', () => {
             edge.setHovered(false);
+        });
+        edge._hitPath.addEventListener('dblclick', (e) => {
+            e.stopPropagation();
+            this._startLabelEdit(edge);
+        });
+
+        if (edge._labelBg) {
+            edge._labelBg.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.selectEdge(edge.id);
+            });
+            edge._labelBg.addEventListener('dblclick', (e) => {
+                e.stopPropagation();
+                this._startLabelEdit(edge);
+            });
+        }
+        if (edge._labelText) {
+            edge._labelText.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.selectEdge(edge.id);
+            });
+            edge._labelText.addEventListener('dblclick', (e) => {
+                e.stopPropagation();
+                this._startLabelEdit(edge);
+            });
+        }
+    }
+
+    _startLabelEdit(edge) {
+        if (edge._editingLabel) return;
+        edge._editingLabel = true;
+
+        const labelX = edge._labelMidX;
+        const labelY = edge._labelMidY;
+
+        const screenX = labelX * this.board.scale + this.board.panX;
+        const screenY = labelY * this.board.scale + this.board.panY;
+
+        // Hide SVG label so it doesn't overlap the input
+        if (edge._labelBg) edge._labelBg.style.display = 'none';
+        if (edge._labelText) edge._labelText.style.display = 'none';
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = edge.label || '';
+        input.placeholder = 'label...';
+        input.className = 'ge-label-edit-input';
+        input.style.position = 'absolute';
+        input.style.left = screenX + 'px';
+        input.style.top = screenY + 'px';
+        input.style.transform = 'translate(-50%, -50%)';
+        input.style.zIndex = '300';
+        // Match the edge's label colours so the input blends seamlessly
+        input.style.backgroundColor = edge.labelBgColor || '#1e1e1e';
+        input.style.color = edge.labelTextColor || '#e0e0e0';
+        input.style.fontSize = Math.round((edge.labelFontSize || 12) * this.board.scale) + 'px';
+
+        this.board.container.appendChild(input);
+        input.focus();
+        input.select();
+
+        const finish = (save) => {
+            if (!edge._editingLabel) return;
+            if (save) edge.label = input.value;
+            edge._editingLabel = false;
+            input.remove();
+            // Re-render restores the SVG label (with updated text if saved)
+            this.renderEdge(edge);
+            if (save && this._onEdgeLabelChange) this._onEdgeLabelChange(edge);
+        };
+
+        input.addEventListener('blur', () => finish(true));
+
+        input.addEventListener('keydown', (e) => {
+            e.stopPropagation();
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                input.blur();             // triggers finish(true)
+            }
+            if (e.key === 'Escape') {
+                input.removeEventListener('blur', finish);
+                finish(false);             // discard, no callback
+            }
         });
     }
 
@@ -303,7 +402,101 @@ export class EdgeManager {
         this.renderEdge(edge);
     }
 
-    // ─── Cleanup ───
+    setEdgeLabel(edgeId, label) {
+        const edge = this.getEdge(edgeId);
+        if (!edge) return;
+        edge.label = label;
+        this.renderEdge(edge);
+        if (this._onEdgeLabelChange) this._onEdgeLabelChange(edge);
+    }
+
+    setEdgeLabelBgColor(edgeId, color) {
+        const edge = this.getEdge(edgeId);
+        if (!edge) return;
+        edge.labelBgColor = color;
+        this.renderEdge(edge);
+    }
+
+    setEdgeLabelTextColor(edgeId, color) {
+        const edge = this.getEdge(edgeId);
+        if (!edge) return;
+        edge.labelTextColor = color;
+        this.renderEdge(edge);
+    }
+
+		setEdgeLabelFontSize(edgeId, size) {
+        const edge = this.getEdge(edgeId);
+        if (!edge) return;
+        edge.labelFontSize = size;
+        this.renderEdge(edge);
+    }
+
+    setEdgeLabelPadding(edgeId, padX, padY) {
+        const edge = this.getEdge(edgeId);
+        if (!edge) return;
+        edge.labelPaddingX = padX;
+        edge.labelPaddingY = padY;
+        this.renderEdge(edge);
+    }
+
+    setEdgeLabelBgStroke(edgeId, color, width) {
+        const edge = this.getEdge(edgeId);
+        if (!edge) return;
+        if (color !== undefined) edge.labelBgStroke = color;
+        if (width !== undefined) edge.labelBgStrokeWidth = width;
+        this.renderEdge(edge);
+    }
+
+    setEdgeLabelBgRadius(edgeId, radius) {
+        const edge = this.getEdge(edgeId);
+        if (!edge) return;
+        edge.labelBgRadius = radius;
+        this.renderEdge(edge);
+    }
+
+
+    setEdgeLabelFontSize(edgeId, size) {
+        const edge = this.getEdge(edgeId);
+        if (!edge) return;
+        edge.labelFontSize = size;
+        this.renderEdge(edge);
+    }
+
+    setEdgeLabelPadding(edgeId, padX, padY) {
+        const edge = this.getEdge(edgeId);
+        if (!edge) return;
+        edge.labelPaddingX = padX;
+        edge.labelPaddingY = padY;
+        this.renderEdge(edge);
+    }
+
+    setSourceSlotStyle(edgeId, style) {
+        const edge = this.getEdge(edgeId);
+        if (!edge) return;
+        edge.sourceSlotStyle = style;
+        this.renderEdge(edge);
+    }
+
+    setSourceSlotColor(edgeId, color) {
+        const edge = this.getEdge(edgeId);
+        if (!edge) return;
+        edge.sourceSlotColor = color;
+        this.renderEdge(edge);
+    }
+
+    setTargetSlotStyle(edgeId, style) {
+        const edge = this.getEdge(edgeId);
+        if (!edge) return;
+        edge.targetSlotStyle = style;
+        this.renderEdge(edge);
+    }
+
+    setTargetSlotColor(edgeId, color) {
+        const edge = this.getEdge(edgeId);
+        if (!edge) return;
+        edge.targetSlotColor = color;
+        this.renderEdge(edge);
+    }
 
     destroy() {
         for (const edge of [...this.edges]) {
@@ -311,5 +504,6 @@ export class EdgeManager {
         }
         this.edges = [];
         if (this._edgeLayer) this._edgeLayer.remove();
+        if (this._slotLayer) this._slotLayer.remove();
     }
 }

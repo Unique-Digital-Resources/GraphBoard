@@ -122,6 +122,19 @@
             <label>Edge Properties <span id="edge-info" style="color:#e09f3e"></span></label>
 
             <div class="tool-section">
+                <h3>Label</h3>
+                <input type="text" id="edge-label" placeholder="Edge label..." class="edge-label-input">
+                <div class="edge-outline-row" style="margin-top:8px">
+                    <span class="edge-outline-label">Text Color</span>
+                    <input type="color" id="edge-label-text-color" value="#e0e0e0" class="edge-color-input">
+                </div>
+                <div class="edge-outline-row" style="margin-top:6px">
+                    <span class="edge-outline-label">BG Color</span>
+                    <input type="color" id="edge-label-bg-color" value="#1e1e1e" class="edge-color-input">
+                </div>
+            </div>
+
+            <div class="tool-section">
                 <h3>Path Method</h3>
                 <div class="edge-method-grid">
                     <button class="edge-opt" data-method="default">Default</button>
@@ -154,6 +167,38 @@
                 <div class="edge-width-row">
                     <input type="range" id="edge-width" min="1" max="10" step="0.5" value="3" class="edge-width-slider">
                     <span id="edge-width-val" class="edge-width-val">3px</span>
+                </div>
+            </div>
+
+            <div class="tool-section">
+                <h3>Source Slot</h3>
+                <div class="edge-method-grid slot-grid">
+                    <button class="edge-opt" data-src-slot="none" title="None">None</button>
+                    <button class="edge-opt" data-src-slot="circle" title="Circle">Circle</button>
+                    <button class="edge-opt" data-src-slot="arrow" title="Arrow">Arrow</button>
+                    <button class="edge-opt" data-src-slot="ring" title="Ring">Ring</button>
+                    <button class="edge-opt" data-src-slot="diamond" title="Diamond">Diamond</button>
+                    <button class="edge-opt" data-src-slot="bar" title="Bar">Bar</button>
+                </div>
+                <div class="edge-outline-row" style="margin-top:8px">
+                    <span class="edge-outline-label">Color</span>
+                    <input type="color" id="edge-src-slot-color" value="#e09f3e" class="edge-color-input">
+                </div>
+            </div>
+
+            <div class="tool-section">
+                <h3>Target Slot</h3>
+                <div class="edge-method-grid slot-grid">
+                    <button class="edge-opt" data-tgt-slot="none" title="None">None</button>
+                    <button class="edge-opt" data-tgt-slot="circle" title="Circle">Circle</button>
+                    <button class="edge-opt" data-tgt-slot="arrow" title="Arrow">Arrow</button>
+                    <button class="edge-opt" data-tgt-slot="ring" title="Ring">Ring</button>
+                    <button class="edge-opt" data-tgt-slot="diamond" title="Diamond">Diamond</button>
+                    <button class="edge-opt" data-tgt-slot="bar" title="Bar">Bar</button>
+                </div>
+                <div class="edge-outline-row" style="margin-top:8px">
+                    <span class="edge-outline-label">Color</span>
+                    <input type="color" id="edge-tgt-slot-color" value="#e09f3e" class="edge-color-input">
                 </div>
             </div>
 
@@ -294,8 +339,19 @@
             document.querySelectorAll('.edge-opt[data-anim]').forEach(b => {
                 b.classList.toggle('active', b.dataset.anim === edge.animation);
             });
+            document.querySelectorAll('.edge-opt[data-src-slot]').forEach(b => {
+                b.classList.toggle('active', b.dataset.srcSlot === edge.sourceSlotStyle);
+            });
+            document.querySelectorAll('.edge-opt[data-tgt-slot]').forEach(b => {
+                b.classList.toggle('active', b.dataset.tgtSlot === edge.targetSlotStyle);
+            });
             edgeWidthSlider.value = edge.strokeWidth;
             edgeWidthVal.textContent = edge.strokeWidth + 'px';
+            document.getElementById('edge-label').value = edge.label || '';
+            document.getElementById('edge-src-slot-color').value = edge.sourceSlotColor || '#e09f3e';
+            document.getElementById('edge-tgt-slot-color').value = edge.targetSlotColor || '#e09f3e';
+            document.getElementById('edge-label-bg-color').value = edge.labelBgColor || '#1e1e1e';
+            document.getElementById('edge-label-text-color').value = edge.labelTextColor || '#e0e0e0';
             renderColorInputs(edge);
         }
 
@@ -381,6 +437,62 @@
             nodesEdges.edgeManager.renderEdge(edge);
         });
 
+        // Edge label input
+        document.getElementById('edge-label').addEventListener('input', (e) => {
+            const edge = nodesEdges.edgeManager.getSelectedEdge();
+            if (!edge) return;
+            edge.label = e.target.value;
+            nodesEdges.edgeManager.renderEdge(edge);
+        });
+
+        // Label bg color
+        document.getElementById('edge-label-bg-color').addEventListener('input', (e) => {
+            const edge = nodesEdges.edgeManager.getSelectedEdge();
+            if (!edge) return;
+            nodesEdges.setEdgeLabelBgColor(edge.id, e.target.value);
+        });
+
+        // Label text color
+        document.getElementById('edge-label-text-color').addEventListener('input', (e) => {
+            const edge = nodesEdges.edgeManager.getSelectedEdge();
+            if (!edge) return;
+            nodesEdges.setEdgeLabelTextColor(edge.id, e.target.value);
+        });
+
+        // Source slot style buttons
+        document.querySelectorAll('.edge-opt[data-src-slot]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const edge = nodesEdges.edgeManager.getSelectedEdge();
+                if (!edge) return;
+                nodesEdges.setSourceSlotStyle(edge.id, btn.dataset.srcSlot);
+                syncEdgePanel(edge);
+            });
+        });
+
+        // Source slot color
+        document.getElementById('edge-src-slot-color').addEventListener('input', (e) => {
+            const edge = nodesEdges.edgeManager.getSelectedEdge();
+            if (!edge) return;
+            nodesEdges.setSourceSlotColor(edge.id, e.target.value);
+        });
+
+        // Target slot style buttons
+        document.querySelectorAll('.edge-opt[data-tgt-slot]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const edge = nodesEdges.edgeManager.getSelectedEdge();
+                if (!edge) return;
+                nodesEdges.setTargetSlotStyle(edge.id, btn.dataset.tgtSlot);
+                syncEdgePanel(edge);
+            });
+        });
+
+        // Target slot color
+        document.getElementById('edge-tgt-slot-color').addEventListener('input', (e) => {
+            const edge = nodesEdges.edgeManager.getSelectedEdge();
+            if (!edge) return;
+            nodesEdges.setTargetSlotColor(edge.id, e.target.value);
+        });
+
         document.getElementById('edge-add-color').addEventListener('click', () => {
             const edge = nodesEdges.edgeManager.getSelectedEdge();
             if (!edge || edge.colors.length >= 8) return;
@@ -417,6 +529,11 @@
             colors: ['#e09f3e', '#4ade80'],
             method: 'default',
             strokeWidth: 3,
+            label: 'data flow',
+            sourceSlotStyle: 'arrow',
+            sourceSlotColor: '#e09f3e',
+            targetSlotStyle: 'ring',
+            targetSlotColor: '#4ade80',
         });
         nodesEdges.addEdge(n2.id, n4.id, 'bottom', 'top', {
             colors: ['#f87171'],
@@ -424,12 +541,22 @@
             method: 'squared',
             strokeWidth: 3,
             animation: 'flow',
+            label: 'output',
+            sourceSlotStyle: 'bar',
+            sourceSlotColor: '#f87171',
+            targetSlotStyle: 'diamond',
+            targetSlotColor: '#f87171',
         });
         nodesEdges.addEdge(n1.id, n3.id, 'left', 'right', {
             colors: ['#a78bfa', '#38bdf8'],
             method: 'default',
             strokeWidth: 3,
             animation: 'march',
+            label: 'input',
+            sourceSlotStyle: 'none',
+            sourceSlotColor: '#a78bfa',
+            targetSlotStyle: 'bar',
+            targetSlotColor: '#38bdf8',
         });
         nodesEdges.addEdge(n3.id, n4.id, 'right', 'left', {
             colors: ['#4ade80', '#fbbf24', '#f87171'],
@@ -437,11 +564,21 @@
             method: 'squared',
             strokeWidth: 4,
             animation: 'pulse',
+            label: 'process',
+            sourceSlotStyle: 'circle',
+            sourceSlotColor: '#4ade80',
+            targetSlotStyle: 'none',
+            targetSlotColor: '#f87171',
         });
         nodesEdges.addEdge(n1.id, n5.id, 'bottom', 'top', {
             colors: ['#e09f3e'],
             method: 'straight',
             strokeWidth: 2,
+            label: 'done',
+            sourceSlotStyle: 'arrow',
+            sourceSlotColor: '#e09f3e',
+            targetSlotStyle: 'arrow',
+            targetSlotColor: '#e09f3e',
         });
 
         // UI Bindings

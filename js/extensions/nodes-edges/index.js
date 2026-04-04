@@ -3,20 +3,6 @@ import { GraphEdge } from './graph-edge.js';
 import { EdgeManager } from './edge-manager.js';
 import { PathMethods } from './path-methods.js';
 
-/**
- * NodesEdgesExtension
- *
- * Optional, self-contained extension that adds node + edge/connection
- * functionality to a GraphBoard instance.
- *
- * Usage:
- *   import { NodesEdgesExtension } from './js/extensions/nodes-edges/index.js';
- *   const ext = new NodesEdgesExtension(board, { ...options });
- *   ext.install();
- *
- * To uninstall:
- *   ext.uninstall();
- */
 export class NodesEdgesExtension {
     constructor(board, options = {}) {
         this.board = board;
@@ -31,6 +17,7 @@ export class NodesEdgesExtension {
             onEdgeDeselect: options.onEdgeDeselect || null,
             onEdgeCreate: options.onEdgeCreate || null,
             onEdgeDelete: options.onEdgeDelete || null,
+            onEdgeLabelChange: options.onEdgeLabelChange || null,
             focusOutlineColor: options.focusOutlineColor || '#e09f3e',
             selectionOutlineColor: options.selectionOutlineColor || '#ff6b6b',
         };
@@ -43,8 +30,15 @@ export class NodesEdgesExtension {
         this.edgeManager = new EdgeManager(this.board, {
             onEdgeSelect: this.options.onEdgeSelect,
             onEdgeDeselect: this.options.onEdgeDeselect,
-            onEdgeCreate: this.options.onEdgeCreate,
-            onEdgeDelete: this.options.onEdgeDelete,
+            onEdgeCreate: (edge) => {
+                this._applySlotStylesToNodes(edge);
+                if (this.options.onEdgeCreate) this.options.onEdgeCreate(edge);
+            },
+            onEdgeDelete: (edge) => {
+                this._resetSlotStylesForEdge(edge);
+                if (this.options.onEdgeDelete) this.options.onEdgeDelete(edge);
+            },
+            onEdgeLabelChange: this.options.onEdgeLabelChange,
             focusOutlineColor: this.options.focusOutlineColor,
             selectionOutlineColor: this.options.selectionOutlineColor,
         });
@@ -75,6 +69,15 @@ export class NodesEdgesExtension {
         delete this.board._nodesEdgesExt;
     }
 
+    // ─── Keep slot layer on top of all nodes ───
+
+    _ensureSlotLayerOnTop() {
+        const slotLayer = this.edgeManager && this.edgeManager.getSlotLayer();
+        if (slotLayer && slotLayer.parentNode === this.board.contentLayer) {
+            this.board.contentLayer.appendChild(slotLayer);
+        }
+    }
+
     // ─── Public API: Node creation ───
 
     addNode(x, y, label, options = {}) {
@@ -91,6 +94,9 @@ export class NodesEdgesExtension {
         this.board.setupElementEvents(node);
         this.board.elements.push(node);
         this.board.updateMinimap();
+
+        // Ensure slot layer stays above all nodes
+        this._ensureSlotLayerOnTop();
 
         return node;
     }
@@ -109,13 +115,129 @@ export class NodesEdgesExtension {
         return this.edgeManager.getEdge(edgeId);
     }
 
-    // ─── Public API: Path methods ───
-
     get pathMethods() {
         return PathMethods;
     }
 
+
+
+		setEdgeLabelFontSize(edgeId, size) {
+        this.edgeManager.setEdgeLabelFontSize(edgeId, size);
+    }
+
+    setEdgeLabelPadding(edgeId, padX, padY) {
+        this.edgeManager.setEdgeLabelPadding(edgeId, padX, padY);
+    }
+
+
+
+    // ─── Slot style application ───
+
+    _applySlotStylesToNodes(edge) {
+        const sourceNode = this.board.elements.find(e => e.id === edge.sourceId);
+        const targetNode = this.board.elements.find(e => e.id === edge.targetId);
+
+        if (sourceNode && sourceNode.setPortStyle) {
+            if (edge.sourceSlotStyle === 'none') {
+                sourceNode.setPortStyle(edge.sourceDir, 'circle', null);
+            } else {
+                sourceNode.setPortStyle(edge.sourceDir, edge.sourceSlotStyle, edge.sourceSlotColor);
+            }
+        }
+        if (targetNode && targetNode.setPortStyle) {
+            if (edge.targetSlotStyle === 'none') {
+                targetNode.setPortStyle(edge.targetDir, 'circle', null);
+            } else {
+                targetNode.setPortStyle(edge.targetDir, edge.targetSlotStyle, edge.targetSlotColor);
+            }
+        }
+    }
+
+    _resetSlotStylesForEdge(edge) {
+        const sourceStillUsed = this.edgeManager.edges.some(
+            e => e.sourceId === edge.sourceId && e.sourceDir === edge.sourceDir && e.id !== edge.id
+        ) || this.edgeManager.edges.some(
+            e => e.targetId === edge.sourceId && e.targetDir === edge.sourceDir && e.id !== edge.id
+        );
+
+        const targetStillUsed = this.edgeManager.edges.some(
+            e => e.sourceId === edge.targetId && e.sourceDir === edge.targetDir && e.id !== edge.id
+        ) || this.edgeManager.edges.some(
+            e => e.targetId === edge.targetId && e.targetDir === edge.targetDir && e.id !== edge.id
+        );
+
+        const sourceNode = this.board.elements.find(e => e.id === edge.sourceId);
+        const targetNode = this.board.elements.find(e => e.id === edge.targetId);
+
+        if (!sourceStillUsed && sourceNode && sourceNode.setPortStyle) {
+            sourceNode.setPortStyle(edge.sourceDir, 'circle', null);
+        }
+        if (!targetStillUsed && targetNode && targetNode.setPortStyle) {
+            targetNode.setPortStyle(edge.targetDir, 'circle', null);
+        }
+    }
+
+    setSourceSlotStyle(edgeId, style) {
+        this.edgeManager.setSourceSlotStyle(edgeId, style);
+        const edge = this.edgeManager.getEdge(edgeId);
+        if (edge) this._applySlotStylesToNodes(edge);
+    }
+
+    setSourceSlotColor(edgeId, color) {
+        this.edgeManager.setSourceSlotColor(edgeId, color);
+        const edge = this.edgeManager.getEdge(edgeId);
+        if (edge) this._applySlotStylesToNodes(edge);
+    }
+
+    setTargetSlotStyle(edgeId, style) {
+        this.edgeManager.setTargetSlotStyle(edgeId, style);
+        const edge = this.edgeManager.getEdge(edgeId);
+        if (edge) this._applySlotStylesToNodes(edge);
+    }
+
+    setTargetSlotColor(edgeId, color) {
+        this.edgeManager.setTargetSlotColor(edgeId, color);
+        const edge = this.edgeManager.getEdge(edgeId);
+        if (edge) this._applySlotStylesToNodes(edge);
+    }
+
+    setEdgeLabel(edgeId, label) {
+        this.edgeManager.setEdgeLabel(edgeId, label);
+    }
+
+    setEdgeLabelBgColor(edgeId, color) {
+        this.edgeManager.setEdgeLabelBgColor(edgeId, color);
+    }
+
+    setEdgeLabelTextColor(edgeId, color) {
+        this.edgeManager.setEdgeLabelTextColor(edgeId, color);
+    }
+
+		setEdgeLabelFontSize(edgeId, size) {
+        this.edgeManager.setEdgeLabelFontSize(edgeId, size);
+    }
+
+    setEdgeLabelPadding(edgeId, padX, padY) {
+        this.edgeManager.setEdgeLabelPadding(edgeId, padX, padY);
+    }
+
+    setEdgeLabelBgStroke(edgeId, color, width) {
+        this.edgeManager.setEdgeLabelBgStroke(edgeId, color, width);
+    }
+
+    setEdgeLabelBgRadius(edgeId, radius) {
+        this.edgeManager.setEdgeLabelBgRadius(edgeId, radius);
+    }
+
     // ─── Port interaction ───
+
+    _isInputFocused() {
+        const el = document.activeElement;
+        if (!el) return false;
+        const tag = el.tagName;
+        return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' ||
+            el.isContentEditable;
+    }
 
     _bindPortEvents() {
         this._onPortMouseDown = (e) => {
@@ -130,7 +252,6 @@ export class NodesEdgesExtension {
 
             const worldPos = node.getPortWorldPos(dir);
 
-            // Select the source node
             this.board.selectionManager.selectElement(nodeId, false);
 
             this._dragState = {
@@ -174,6 +295,8 @@ export class NodesEdgesExtension {
         };
 
         this._onKeyDown = (e) => {
+            if (this._isInputFocused()) return;
+
             if (e.key === 'Escape') {
                 if (this._dragState && this._dragState.type === 'connect') {
                     this.edgeManager.cancelConnect();
@@ -191,6 +314,8 @@ export class NodesEdgesExtension {
         };
 
         this._onCanvasClick = (e) => {
+            // Don't deselect when an input/control has focus
+            if (this._isInputFocused()) return;
             if (e.target === this.board.svg || e.target === this.board.gridLayer) {
                 this.edgeManager.deselectAll();
             }

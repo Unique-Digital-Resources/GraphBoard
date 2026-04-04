@@ -13,6 +13,7 @@ export class GraphNode extends GraphElement {
         this.label = options.label || 'Node';
         this.ports = {};
         this._portRadius = options.portRadius || 5;
+        this._portConfigs = {};
     }
 
     render(svgNS) {
@@ -41,26 +42,115 @@ export class GraphNode extends GraphElement {
         const positions = this._getPortPositions();
 
         for (const dir of PORT_DIRS) {
-            const circle = document.createElementNS(svgNS, 'circle');
+            const g = document.createElementNS(svgNS, 'g');
+            g.setAttribute('class', `gn-port gn-port-${dir}`);
+            g.dataset.portDir = dir;
+            g.dataset.nodeId = this.id;
+            g.dataset.baseR = r;
+
             const pos = positions[dir];
-            circle.setAttribute('cx', pos.x);
-            circle.setAttribute('cy', pos.y);
-            circle.setAttribute('r', r);
-            circle.setAttribute('class', `gn-port gn-port-${dir}`);
-            circle.dataset.portDir = dir;
-            circle.dataset.nodeId = this.id;
-            circle.dataset.baseR = r;
+            g.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
 
-            circle.addEventListener('mouseenter', () => {
-                circle.setAttribute('r', r * 1.5);
+            // Default circle shape
+            this._renderPortShape(g, svgNS, 'circle', null, r);
+
+            g.addEventListener('mouseenter', () => {
+                const shape = g.querySelector('circle, polygon, path');
+                if (shape) {
+                    const scale = 1.5;
+                    if (shape.tagName === 'circle') {
+                        shape.setAttribute('r', r * scale);
+                    } else {
+                        shape.setAttribute('transform', `scale(${scale})`);
+                    }
+                }
             });
-            circle.addEventListener('mouseleave', () => {
-                circle.setAttribute('r', r);
+            g.addEventListener('mouseleave', () => {
+                const shape = g.querySelector('circle, polygon, path');
+                if (shape) {
+                    if (shape.tagName === 'circle') {
+                        shape.setAttribute('r', r);
+                    } else {
+                        shape.removeAttribute('transform');
+                    }
+                }
             });
 
-            this.el.appendChild(circle);
-            this.ports[dir] = circle;
+            this.el.appendChild(g);
+            this.ports[dir] = g;
         }
+    }
+
+    _renderPortShape(portG, svgNS, style, color, r) {
+        portG.innerHTML = '';
+        const fillColor = color || 'var(--gb-accent-color, #7b6cd9)';
+
+        switch (style) {
+            case 'diamond': {
+                const s = r * 1.2;
+                const diamond = document.createElementNS(svgNS, 'polygon');
+                diamond.setAttribute('points', `0,${-s} ${s},0 0,${s} ${-s},0`);
+                diamond.setAttribute('fill', fillColor);
+                diamond.setAttribute('stroke', 'var(--gb-bg-color, #1e1e1e)');
+                diamond.setAttribute('stroke-width', '2px');
+                portG.appendChild(diamond);
+                break;
+            }
+            case 'ring': {
+                const outer = document.createElementNS(svgNS, 'circle');
+                outer.setAttribute('r', r);
+                outer.setAttribute('fill', 'none');
+                outer.setAttribute('stroke', fillColor);
+                outer.setAttribute('stroke-width', Math.max(2, r * 0.4));
+                portG.appendChild(outer);
+                break;
+            }
+            case 'arrow': {
+                const path = document.createElementNS(svgNS, 'path');
+                const s = r * 1.3;
+                path.setAttribute('d', `M ${s} 0 L ${-s * 0.4} ${-s * 0.6} L ${-s * 0.4} ${s * 0.6} Z`);
+                path.setAttribute('fill', fillColor);
+                path.setAttribute('stroke', 'var(--gb-bg-color, #1e1e1e)');
+                path.setAttribute('stroke-width', '1px');
+                portG.appendChild(path);
+                break;
+            }
+            case 'circle':
+            default: {
+                const circle = document.createElementNS(svgNS, 'circle');
+                circle.setAttribute('r', r);
+                circle.setAttribute('fill', fillColor);
+                circle.setAttribute('stroke', 'var(--gb-bg-color, #1e1e1e)');
+                circle.setAttribute('stroke-width', '2px');
+                portG.appendChild(circle);
+                break;
+            }
+        }
+    }
+
+    /**
+     * Set the visual style for a specific port direction.
+     * @param {string} dir - 'top'|'right'|'bottom'|'left'
+     * @param {string} style - 'circle'|'diamond'|'ring'|'arrow'
+     * @param {string} [color] - CSS color value
+     */
+    setPortStyle(dir, style, color) {
+        if (!PORT_DIRS.includes(dir)) return;
+        this._portConfigs[dir] = { style: style || 'circle', color: color || null };
+        const portG = this.ports[dir];
+        if (portG) {
+            const svgNS = portG.ownerSVGElement ? portG.ownerSVGElement.namespaceURI : 'http://www.w3.org/2000/svg';
+            this._renderPortShape(portG, svgNS, style, color, this._portRadius);
+            // Re-add hover class
+            portG.classList.add('gn-port', `gn-port-${dir}`);
+        }
+    }
+
+    /**
+     * Get port config for a direction.
+     */
+    getPortConfig(dir) {
+        return this._portConfigs[dir] || { style: 'circle', color: null };
     }
 
     _getPortPositions() {
@@ -122,11 +212,10 @@ export class GraphNode extends GraphElement {
     _updatePortPositions() {
         const positions = this._getPortPositions();
         for (const dir of PORT_DIRS) {
-            const circle = this.ports[dir];
-            if (circle) {
+            const g = this.ports[dir];
+            if (g) {
                 const pos = positions[dir];
-                circle.setAttribute('cx', pos.x);
-                circle.setAttribute('cy', pos.y);
+                g.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
             }
         }
     }

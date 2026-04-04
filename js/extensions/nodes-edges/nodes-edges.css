@@ -103,13 +103,22 @@
 
 /* ─── GraphNode ports ─── */
 .gn-port {
+    opacity: 0;
+    transition: opacity 0.15s;
+    cursor: crosshair;
+    pointer-events: all;
+}
+
+.gn-port > circle {
     fill: var(--gb-accent-color, #7b6cd9);
     stroke: var(--gb-bg-color, #1e1e1e);
     stroke-width: 2px;
-    opacity: 0;
-    transition: opacity 0.15s, fill 0.15s;
-    cursor: crosshair;
-    pointer-events: all;
+    transition: fill 0.15s;
+}
+
+.gn-port > polygon,
+.gn-port > path {
+    transition: fill 0.15s, stroke 0.15s;
 }
 
 .graph-element:hover .gn-port,
@@ -117,8 +126,73 @@
     opacity: 1;
 }
 
-.gn-port:hover {
+.gn-port:hover > circle {
     fill: #fff;
+}
+
+.gn-port:hover > polygon,
+.gn-port:hover > path {
+    fill: #fff;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Edge Label
+   Visual properties (fill, stroke, font-size, etc.) are set
+   exclusively via JS attributes in GraphEdge._updateLabel().
+   CSS must NOT declare fill/stroke here — CSS overrides SVG
+   presentation attributes, which would break programmatic
+   styling (setEdgeLabelBgColor, setEdgeLabelTextColor, etc.).
+   Only behavioural / filter-based rules belong here.
+   ═══════════════════════════════════════════════════════════════ */
+
+.ge-label-bg {
+    pointer-events: all;
+    cursor: pointer;
+    transition: filter 0.15s;
+}
+
+.ge-label-bg:hover {
+    filter: brightness(1.25);
+}
+
+.ge-label-bg.ge-label-selected {
+    filter: brightness(1.1) drop-shadow(0 0 5px rgba(255, 107, 107, 0.55));
+}
+
+.ge-label {
+    font-weight: 500;
+    pointer-events: none;
+    user-select: none;
+}
+
+.ge-label-edit-input {
+    font-family: inherit;
+    padding: 3px 8px;
+    border-radius: 4px;
+    outline: none;
+    width: 100px;
+    max-width: 200px;
+    min-width: 40px;
+    text-align: center;
+    border: 1.5px solid rgba(123, 108, 217, 0.6);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(123, 108, 217, 0.15);
+    transition: border-color 0.15s, box-shadow 0.15s;
+    /* background and color are set inline by EdgeManager to match edge label */
+}
+
+.ge-label-edit-input:focus {
+    border-color: rgba(123, 108, 217, 0.9);
+    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.6), 0 0 0 2px rgba(123, 108, 217, 0.25);
+}
+
+/* ─── Slot layer (above nodes) ─── */
+.slot-layer {
+    pointer-events: none;
+}
+
+/* ─── Slot markers ─── */
+.ge-slot {
+    pointer-events: none;
 }
 
 /* ─── GraphNode body ─── */
